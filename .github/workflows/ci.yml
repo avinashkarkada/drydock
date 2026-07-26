@@ -1,0 +1,70 @@
+name: CI
+
+# The point of this workflow is not that the tests pass -- they pass locally too.
+# It is that they pass on a machine that is not the author's, installed from
+# nothing but the lockfile. That is the only check that actually defends against
+# "works on my machine", and it has to run on every commit to be worth anything.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (clean install)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          # Fail rather than silently re-solving. A CI run that quietly resolves
+          # different versions from the lockfile is testing something other than
+          # what users will install.
+          frozen: true
+          environments: dev
+
+      - name: Show resolved environment
+        run: |
+          pixi run -e dev python -c "import sys; print(sys.version)"
+          pixi run -e dev python -c "import vina, rdkit, meeko; print('vina', vina.__file__)"
+          pixi run -e dev vina --version
+          pixi run -e dev autogrid4 --version | head -1
+          pixi run -e dev autodock4 --version | head -1
+
+      - name: Lint
+        run: pixi run -e dev ruff check src tests
+
+      - name: Tests
+        run: pixi run -e dev pytest -q
+
+      - name: Self-test
+        # Runs the real pipeline and compares affinities to recorded values. This
+        # is what catches a numerical drift that unit tests cannot see: a rebuilt
+        # engine, a different BLAS, a subtly changed dependency.
+        run: pixi run -e dev drydock selftest
+
+  container:
+    name: container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t drydock:ci .
+
+      - name: Self-test inside the container
+        # Built from the same lockfile as the pixi environment, so if these two
+        # jobs ever disagree, the packaging has drifted.
+        run: docker run --rm drydock:ci drydock selftest

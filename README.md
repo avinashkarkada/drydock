@@ -74,22 +74,55 @@ apptainer build drydock.sif docker-daemon://drydock:0.1.0
 ## Quickstart
 
 ```bash
-# 1. Prepare the ligand library (streams; never loads the whole file)
-drydock prep-ligands --input library.sdf --out ligands/ --ph 7.4 --optimize mmff94
+# 0. Check the receptor you prepared. Do this first -- see below for why.
+drydock check-receptor receptor.pdbqt
 
-# 2. Define the search box, either explicitly or from active-site residues
-drydock box --receptor receptor.pdbqt --residues 187,188,401,405,411,420,421,423 \
-            --pad 8 --out config.toml
+# 1. Look at the library before committing to it
+drydock survey library.sdf
 
-# 3. Measure throughput before committing to a long run
-drydock benchmark --config config.toml --n 100
+# 2. Prepare it (streams; never loads the whole file into memory)
+drydock prep-ligands --input library.sdf --out ligands/ --ph 7.4
 
-# 4. Screen
-drydock screen --config config.toml
+# 3. Define the search box from the residues lining your site
+drydock box --receptor receptor.pdbqt --residues 187,188,401,405,411,420,421,423
+
+# 4. Measure throughput on your hardware before starting a long run
+drydock benchmark --receptor receptor.pdbqt --ligands ligands/ \
+                  --residues 187,188,401,405,411,420,421,423
+
+# 5. Screen
+drydock screen --receptor receptor.pdbqt --ligands ligands/ --run runs/mmp9 \
+               --residues 187,188,401,405,411,420,421,423
+
+# progress, from anywhere, while it runs
+drydock status runs/mmp9
 
 # or drive the whole thing graphically
 drydock-gui
 ```
+
+For a zinc metalloprotein, add the AutoDock4Zn steps before screening:
+
+```bash
+drydock add-zinc-pseudo receptor.pdbqt          # -> receptor_TZ.pdbqt
+drydock maps --receptor receptor_TZ.pdbqt --out maps/ --residues 401,405,411
+drydock screen --engine ad4 --maps maps/ ...
+```
+
+### Check your receptor first
+
+`check-receptor` exists because receptor preparation fails in ways that produce a
+perfectly valid file. Two are common enough to be worth naming:
+
+- **No polar hydrogens.** AutoDock encodes a hydrogen-bond donor as a heavy atom
+  with an `HD` hydrogen attached. Strip the hydrogens and the donors do not get
+  weaker — they cease to exist, and every backbone amide, lysine and tyrosine
+  hydroxyl scores acceptor-only. Nothing errors.
+- **Atom types in the wrong case.** AutoDock types are case-sensitive: `Zn`, not
+  `ZN`. Vina rejects the wrong case, but reports it as a C++ overload-resolution
+  error that reads like a bug in the caller.
+
+Both were present in the first real receptor Drydock was pointed at.
 
 ## Engines
 
@@ -110,6 +143,24 @@ file. Supplying a custom parameter file therefore implies `ad4`.
 
 `autodock4` is included for small focused sets. Drydock warns if you point it at
 a large library.
+
+## Identifiers are not unique, and that matters
+
+Compound identifiers repeat in real libraries, and a tool that treats them as
+filenames destroys data without reporting anything.
+
+The working example: CMNPD 1.0 carries **47,451 records under 25,224 distinct
+`COMPOUND_ID` values**, because every compound with undefined stereocentres has
+had all 2ⁿ stereoisomers enumerated under one identifier — `CMNPD22318` appears
+64 times. Each is a genuinely different molecule that docks differently. Writing
+them all to `CMNPD22318.pdbqt` keeps one and silently loses 63.
+
+Drydock therefore gives every record two identifiers: a unique `ligand_id`
+(suffixed on collision) and the source `compound_id` to group by. `results.csv`
+ranks by compound, keeping the best-scoring variant and recording how many were
+tried; `--flat` reports every record separately.
+
+Run `drydock survey` on any library to see the split before you commit to it.
 
 ## Output
 

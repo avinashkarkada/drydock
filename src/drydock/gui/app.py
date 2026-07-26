@@ -4,15 +4,16 @@ A monitor, not a controller. It reads a run directory and displays it; the
 screening process is launched detached and is not owned by this window. Closing
 it does not stop a run, and a run crashing does not take the window with it.
 
-The interface is three panes:
+The interface is:
 
 * **Run** -- which directory is being watched, and how far along it is.
+* **Setup** -- receptor, ligands, box and engine; starts a detached screen.
 * **Results** -- a virtualised table of every ligand scored so far.
 * **Activity** -- a bounded log of recent events.
 
-Setup (choosing a receptor, box and engine, and starting a run) is stubbed here
-and lands with the screening runner. Until then the window is driven by
-``drydock dev synthesize-run``.
+Starting a screen from Setup spawns ``drydock screen`` in its own session and
+then simply attaches to the run directory it creates. The window holds no handle
+on the work, which is what lets it be closed and reopened freely.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QTableView,
     QTabWidget,
@@ -43,6 +45,7 @@ from PySide6.QtWidgets import (
 from drydock import __version__
 from drydock.core.rundir import LigandResult, RunStatus
 from drydock.gui.model import ResultsTableModel
+from drydock.gui.setup_panel import SetupPanel
 from drydock.gui.watcher import RunWatcher
 
 # The activity pane is a rolling window, not a transcript. A long screen emits
@@ -149,26 +152,23 @@ class MainWindow(QMainWindow):
         # negative affinity, i.e. the best hits, at the top.
         self._table.sortByColumn(AFFINITY_COLUMN, Qt.SortOrder.AscendingOrder)
 
+        self._setup = SetupPanel()
+        # Launching a screen attaches this window to the run it just started, so
+        # the user lands on results rather than having to find the directory.
+        self._setup.runStarted.connect(self._on_run_started)
+
+        setup_scroll = QScrollArea()
+        setup_scroll.setWidget(self._setup)
+        setup_scroll.setWidgetResizable(True)
+
+        self._tabs = tabs
+        tabs.addTab(setup_scroll, "Setup")
         tabs.addTab(self._table, "Results")
-        tabs.addTab(self._build_setup_placeholder(), "Setup")
         return tabs
 
-    def _build_setup_placeholder(self) -> QWidget:
-        placeholder = QWidget()
-        layout = QVBoxLayout(placeholder)
-        label = QLabel(
-            "<h3>Setup</h3>"
-            "<p>Receptor, ligand library, search box and engine selection land "
-            "with the screening runner.</p>"
-            "<p>Until then, generate a run to watch:</p>"
-            "<pre>drydock dev synthesize-run /tmp/demo -n 5000 --live</pre>"
-        )
-        label.setTextFormat(Qt.TextFormat.RichText)
-        label.setWordWrap(True)
-        label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(label)
-        layout.addStretch(1)
-        return placeholder
+    def _on_run_started(self, run_dir: str) -> None:
+        self.attach_run(run_dir)
+        self._tabs.setCurrentWidget(self._table)
 
     def _build_activity(self) -> QWidget:
         self._log = QPlainTextEdit()
