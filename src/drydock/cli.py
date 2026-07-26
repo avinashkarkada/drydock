@@ -28,6 +28,123 @@ def main() -> None:
     """
 
 
+@main.command("prep-ligands")
+@click.option(
+    "-i", "--input", "library", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Compound library (.sdf/.smi/.mol2, optionally .gz).",
+)
+@click.option(
+    "-o", "--out", required=True, type=click.Path(path_type=Path),
+    help="Directory to write PDBQTs and the manifest into.",
+)
+@click.option("--ph", default=7.4, show_default=True, help="pH for protonation states.")
+@click.option(
+    "--optimize/--no-optimize", default=True, show_default=True,
+    help="Embed in 3D and minimise with MMFF94s, rather than keeping input coordinates.",
+)
+@click.option(
+    "--conformers", default=1, show_default=True,
+    help="Starting geometries per compound. >1 is the only setting that samples ring space.",
+)
+@click.option(
+    "--macrocycles/--rigid-macrocycles", default=True, show_default=True,
+    help="Let Vina open and re-close macrocyclic rings during the search.",
+)
+@click.option("--tautomers", is_flag=True, help="Enumerate tautomers (multiplies the library).")
+@click.option("--max-torsions", type=int, default=None, help="Reject floppier ligands than this.")
+@click.option("--id-field", default=None, help="SDF property holding the compound identifier.")
+@click.option("-j", "--workers", default=0, help="Processes to use. 0 means one per CPU.")
+@click.option("--limit", type=int, default=None, help="Only read this far into the library.")
+@click.option("--seed", default=0, show_default=True, help="Global seed for reproducibility.")
+@click.option("--no-resume", is_flag=True, help="Re-prepare ligands already in the manifest.")
+def prep_ligands(
+    library: Path,
+    out: Path,
+    ph: float,
+    optimize: bool,
+    conformers: int,
+    macrocycles: bool,
+    tautomers: bool,
+    max_torsions: int | None,
+    id_field: str | None,
+    workers: int,
+    limit: int | None,
+    seed: int,
+    no_resume: bool,
+) -> None:
+    """Convert a compound library into docking-ready PDBQT files.
+
+    Streams the input, so library size is bounded by disk rather than memory, and
+    resumes by default: re-running the same command after an interruption picks
+    up where it stopped.
+    """
+    from drydock.core.ligprep import PrepConfig
+    from drydock.core.prep_runner import run_prep
+
+    config = PrepConfig(
+        ph=ph,
+        optimize=optimize,
+        n_conformers=conformers,
+        skip_tautomers=not tautomers,
+        macrocycles=macrocycles,
+        seed=seed,
+        max_torsions=max_torsions,
+    )
+
+    with click.progressbar(length=100, label="preparing", show_pos=False) as bar:
+        state = {"last": 0}
+
+        def on_progress(summary) -> None:
+            done = summary.prepared + summary.failed + summary.skipped
+            pct = int(100 * done / summary.total) if summary.total else 0
+            bar.update(max(0, pct - state["last"]))
+            state["last"] = pct
+
+        summary = run_prep(
+            library,
+            out,
+            config,
+            n_workers=workers,
+            id_field=id_field,
+            limit=limit,
+            resume=not no_resume,
+            progress=on_progress,
+        )
+
+    click.echo(
+        f"prepared {summary.prepared}, failed {summary.failed}, "
+        f"skipped {summary.skipped} in {_format_duration(summary.elapsed_s)} "
+        f"({summary.rate_per_s:.1f}/s)"
+    )
+    click.echo(f"manifest: {out}/manifest.csv")
+    if summary.failed:
+        click.echo(f"failures: {out}/failures.csv")
+
+
+@main.command("survey")
+@click.argument("library", type=click.Path(exists=True, path_type=Path))
+@click.option("--id-field", default=None, help="SDF property holding the compound identifier.")
+def survey_cmd(library: Path, id_field: str | None) -> None:
+    """Summarise a library without preparing it.
+
+    Reports records against distinct compounds. These differ whenever a source
+    enumerates stereoisomers under one identifier, and the gap matters: records
+    determine how long a screen takes, distinct compounds determine how many
+    things you are actually testing.
+    """
+    from drydock.core.library import survey
+
+    info = survey(library, id_field=id_field)
+    click.echo(f"records:                 {info['records']}")
+    click.echo(f"distinct compounds:      {info['distinct_compounds']}")
+    click.echo(f"compounds with variants: {info['compounds_with_variants']}")
+    click.echo(f"most variants:           {info['max_variants']}")
+    if info["most_repeated"]:
+        click.echo("most repeated identifiers:")
+        for cid, n in info["most_repeated"]:
+            click.echo(f"  {cid}: {n}")
+
+
 @main.command()
 @click.argument("run_dir", type=click.Path(path_type=Path))
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
