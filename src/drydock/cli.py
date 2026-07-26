@@ -533,6 +533,86 @@ def maps_cmd(
     click.echo(f"screen with: drydock screen --engine ad4 --maps {maps_dir} …")
 
 
+@main.command("prep-receptor")
+@click.option(
+    "-i", "--input", "structure", required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Receptor structure (.pdb or .cif/.mmcif).",
+)
+@click.option(
+    "-o", "--out", required=True, type=click.Path(path_type=Path),
+    help="Output path; .pdbqt is appended.",
+)
+@click.option(
+    "--allow-bad-residues/--strict", default=True, show_default=True,
+    help="Delete residues with missing atoms rather than failing.",
+)
+@click.option(
+    "--delete-residues", default=None,
+    help="Residues to remove, e.g. 'A:350,B:15,16'. Use for waters and artefacts.",
+)
+@click.option(
+    "--charge-model", default="gasteiger", show_default=True,
+    type=click.Choice(["gasteiger", "espaloma", "zero"]),
+)
+@click.option("--altloc", default=None, help="Alternate location to take, e.g. A.")
+@click.option("--keep-pdb", is_flag=True, help="Keep the PDB converted from mmCIF.")
+def prep_receptor(
+    structure: Path,
+    out: Path,
+    allow_bad_residues: bool,
+    delete_residues: str | None,
+    charge_model: str,
+    altloc: str | None,
+    keep_pdb: bool,
+) -> None:
+    """Prepare a receptor structure for docking.
+
+    Adds hydrogens, assigns AutoDock atom types and partial charges, and writes a
+    PDBQT. Reads mmCIF as well as PDB.
+
+    The result is checked before it is handed back: preparation can succeed and
+    still produce a receptor that quietly ruins a screen, and it is far cheaper to
+    hear about that here than after a long run.
+    """
+    from drydock.core.recprep import ReceptorPrepError, prepare_receptor
+
+    try:
+        result = prepare_receptor(
+            structure,
+            out,
+            allow_bad_residues=allow_bad_residues,
+            delete_residues=delete_residues,
+            charge_model=charge_model,
+            default_altloc=altloc,
+            keep_pdb=keep_pdb,
+        )
+    except ReceptorPrepError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    report = result.report
+    if result.converted_from:
+        click.echo(f"converted {result.converted_from.name} to PDB")
+    click.echo(f"wrote {result.receptor_pdbqt}")
+    click.echo(f"  atoms:        {report.n_atoms}")
+    click.echo(f"  polar H (HD): {report.n_polar_hydrogens}")
+    click.echo(f"  chains:       {', '.join(report.chains) or '-'}")
+    click.echo(f"  metals:       {', '.join(report.metals) or 'none'}")
+
+    for deleted in result.deleted_residues:
+        click.secho(f"  {deleted}", fg="yellow")
+
+    for note in report.notes:
+        click.echo(f"\nnote: {note}")
+    for problem in report.problems:
+        click.secho(f"\nPROBLEM: {problem}", fg="red")
+
+    if report.ok:
+        click.secho("\nreceptor looks usable", fg="green")
+    else:
+        raise SystemExit(1)
+
+
 @main.command("check-receptor")
 @click.argument("receptor", type=click.Path(exists=True, path_type=Path))
 def check_receptor(receptor: Path) -> None:

@@ -12,10 +12,9 @@ docking-ready PDBQT files alongside a descriptor manifest.
 **Screen.** Dock that library against a receptor you prepared, and produce a
 ranked CSV with affinities joined to compound descriptors.
 
-Receptor preparation is deliberately **not** part of Drydock. Point it at a
-receptor PDBQT you prepared with your tool of choice. The single exception is
-zinc pseudo-atom placement, which is opt-in, because the AutoDock4Zn scoring
-path cannot work without it.
+**Prepare receptors.** Read a PDB or mmCIF, add hydrogens, assign AutoDock atom
+types and charges, and check the result — because a receptor can prepare cleanly
+and still be unusable.
 
 ## Why another docking wrapper
 
@@ -74,7 +73,8 @@ apptainer build drydock.sif docker-daemon://drydock:0.1.0
 ## Quickstart
 
 ```bash
-# 0. Check the receptor you prepared. Do this first -- see below for why.
+# 0. Prepare the receptor (PDB or mmCIF), and check what came out
+drydock prep-receptor -i 2OVX.cif -o receptor
 drydock check-receptor receptor.pdbqt
 
 # 1. Look at the library before committing to it
@@ -101,8 +101,9 @@ drydock status runs/mmp9
 drydock-gui
 ```
 
-The GUI has three tabs in the order the work is done: **1. Ligands** (prepare a
-library), **2. Screen** (receptor, box, engine) and **3. Results**. Both stages
+The GUI has four tabs in the order the work is done: **1. Receptor**,
+**2. Ligands**, **3. Screen** and **4. Results**. Each stage hands its output to
+the next, so paths do not have to be retyped. Ligand preparation and screening
 launch as detached processes and are watched through the directories they write,
 so the window can be closed and reopened at any point without disturbing a run.
 
@@ -114,10 +115,11 @@ drydock maps --receptor receptor_TZ.pdbqt --out maps/ --residues 401,405,411
 drydock screen --engine ad4 --maps maps/ ...
 ```
 
-### Check your receptor first
+### Always check the receptor
 
-`check-receptor` exists because receptor preparation fails in ways that produce a
-perfectly valid file. Two are common enough to be worth naming:
+`prep-receptor` checks its own output, and `check-receptor` will inspect a file
+prepared anywhere else. Both exist because receptor preparation fails in ways
+that produce a perfectly valid file. Two are common enough to be worth naming:
 
 - **No polar hydrogens.** AutoDock encodes a hydrogen-bond donor as a heavy atom
   with an `HD` hydrogen attached. Strip the hydrogens and the donors do not get

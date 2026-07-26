@@ -6,9 +6,10 @@ it does not stop a run, and a run crashing does not take the window with it.
 
 The interface follows the order the work is done:
 
-* **1. Ligands** -- convert, protonate, optimise and prepare a library.
-* **2. Screen** -- receptor, box and engine; starts a detached screen.
-* **3. Results** -- a virtualised table of every ligand scored so far.
+* **1. Receptor** -- prepare a structure, and check what came out.
+* **2. Ligands** -- convert, protonate, optimise and prepare a library.
+* **3. Screen** -- box and engine; starts a detached screen.
+* **4. Results** -- a virtualised table of every ligand scored so far.
 
 with a run bar and a bounded activity log framing them.
 
@@ -47,6 +48,7 @@ from drydock import __version__
 from drydock.core.rundir import LigandResult, RunStatus
 from drydock.gui.ligand_panel import LigandPanel
 from drydock.gui.model import ResultsTableModel
+from drydock.gui.receptor_panel import ReceptorPanel
 from drydock.gui.setup_panel import SetupPanel
 from drydock.gui.watcher import RunWatcher
 
@@ -154,8 +156,14 @@ class MainWindow(QMainWindow):
         # negative affinity, i.e. the best hits, at the top.
         self._table.sortByColumn(AFFINITY_COLUMN, Qt.SortOrder.AscendingOrder)
 
+        self._receptor = ReceptorPanel()
         self._ligands = LigandPanel()
         self._setup = SetupPanel()
+
+        # Preparing a receptor fills it in on the Screen tab, for the same reason
+        # preparing ligands does: re-typing a path is how the wrong file gets
+        # screened.
+        self._receptor.prepared.connect(self._on_receptor_prepared)
 
         # Finishing preparation fills in the ligand directory on the Setup tab and
         # moves the user there: the two stages are separate processes but one
@@ -168,14 +176,19 @@ class MainWindow(QMainWindow):
 
         self._tabs = tabs
         # Ordered as the work is done: prepare, then screen, then read results.
-        tabs.addTab(_scrolled(self._ligands), "1. Ligands")
-        tabs.addTab(_scrolled(self._setup), "2. Screen")
-        tabs.addTab(self._table, "3. Results")
+        tabs.addTab(_scrolled(self._receptor), "1. Receptor")
+        tabs.addTab(_scrolled(self._ligands), "2. Ligands")
+        tabs.addTab(_scrolled(self._setup), "3. Screen")
+        tabs.addTab(self._table, "4. Results")
         return tabs
+
+    def _on_receptor_prepared(self, receptor: str) -> None:
+        self._setup.receptor.set_path(receptor)
+        self._log_line(f"receptor prepared: {receptor}")
 
     def _on_ligands_prepared(self, ligand_dir: str) -> None:
         self._setup.ligands.set_path(ligand_dir)
-        self._tabs.setCurrentIndex(1)
+        self._tabs.setCurrentIndex(2)
         self._log_line(f"ligands prepared: {ligand_dir}")
 
     def _on_run_started(self, run_dir: str) -> None:
