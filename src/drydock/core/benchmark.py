@@ -6,11 +6,23 @@ and ligand flexibility, so an estimate carried over from a different target is
 worth very little.
 
 The measurement that motivated this module: an MMP9 screen whose search box was
-derived from nine active-site residues with 5 A padding came to 21,566 A^3 --
-under Vina's own 27,000 A^3 warning threshold, so nothing complained -- and ran
-at a median of 72 seconds per ligand, with the worst compound taking 821. That is
-three days for a 47,000-record library. Tightening the box is a one-line change;
-discovering the need for it three days in is not.
+derived from nine active-site residues with 5 A padding ran at a median of 81
+seconds and a mean of 130 seconds per ligand, with the worst compound taking 888.
+That is roughly six days for a 47,000-record library at exhaustiveness 8 on
+twelve cores -- a number worth knowing before starting rather than after.
+
+Measure on an idle machine
+--------------------------
+
+A benchmark saturates every core it is given, so anything else running competes
+with it directly. During development, benchmark runs that overlapped with test
+suites and linters on the same twelve cores reported per-ligand costs inflated by
+more than 3x, and the discrepancy was initially mistaken for a real effect of a
+code change. Two full runs of the same 100 compounds, measured without competing
+load, agreed to within 2%.
+
+If a projection here disagrees sharply with what a real screen goes on to do,
+suspect the measurement conditions before suspecting the configuration.
 
 Sampling
 --------

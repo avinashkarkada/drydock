@@ -1,0 +1,37 @@
+{
+  "drydock_version": "0.1.0",
+  "recorded_at_iso": "2026-07-26T18:55:46-0400",
+  "packages": {
+    "vina": "1.2.7",
+    "rdkit": "2025.9.6",
+    "meeko": "0.7.1",
+    "molscrub": "0.2.2",
+    "numpy": "2.5.1"
+  },
+  "engines": {
+    "autogrid4": "AutoGrid 4.2.6   ",
+    "autodock4": "AutoDock 4.2.6   "
+  },
+  "settings": {
+    "seed": 42,
+    "exhaustiveness": 4,
+    "n_modes": 9,
+    "box_center": [
+      70.219,
+      18.432,
+      50.134
+    ],
+    "box_size": [
+      20.0,
+      20.0,
+      20.0
+    ]
+  },
+  "affinities": {
+    "aspirin": -5.68,
+    "benzene": -4.16,
+    "epicatechin": -8.47,
+    "ethanol": -2.52,
+    "suberoylanilide_fragment": -5.99
+  }
+}

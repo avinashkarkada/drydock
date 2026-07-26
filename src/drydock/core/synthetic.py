@@ -55,7 +55,7 @@ def synthesize_run(
     engine: str = "vina",
     live: bool = False,
     delay_s: float = 0.05,
-    id_prefix: str = "CMNPD",
+    id_prefix: str = "LIG",
     complete: bool = True,
 ) -> RunDir:
     """Write a synthetic run directory.

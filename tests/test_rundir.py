@@ -234,7 +234,7 @@ class TestResumeFlow:
         run = synthesize_run(tmp_path / "run", n_ligands=100, seed=5, complete=False)
         done = run.completed_ids()
 
-        all_ids = {f"CMNPD{i + 1}" for i in range(100)}
+        all_ids = {f"LIG{i + 1}" for i in range(100)}
         todo = all_ids - done
 
         assert todo, "an incomplete run must leave work to do"

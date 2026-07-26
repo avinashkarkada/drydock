@@ -190,6 +190,21 @@ def run_screen(
     run = RunDir(run_dir).create()
     n_workers = n_workers or (os.cpu_count() or 1)
 
+    # Written before any docking starts, so an interrupted run still records what
+    # it was attempting -- which is exactly when the question gets asked.
+    from drydock.core import provenance as prov
+
+    manifest = Path(pdbqt_dir).parent / "manifest.csv"
+    run.write_provenance(
+        prov.build(
+            receptor=config.receptor,
+            ligand_dir=pdbqt_dir,
+            config=config,
+            manifest=manifest if manifest.exists() else None,
+            extra={"n_workers": n_workers},
+        )
+    )
+
     ligands = list(iter_ligands(pdbqt_dir))
     if limit is not None:
         ligands = ligands[:limit]

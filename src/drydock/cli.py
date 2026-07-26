@@ -689,9 +689,63 @@ def status(run_dir: Path, as_json: bool) -> None:
         click.echo(f"eta:       {_format_duration(eta)}")
 
 
+@main.command("selftest")
+@click.option("--keep", is_flag=True, help="Leave the working directory for inspection.")
+@click.option(
+    "--work-dir", type=click.Path(path_type=Path), default=None,
+    help="Where to run. A temporary directory by default.",
+)
+def selftest_cmd(keep: bool, work_dir: Path | None) -> None:
+    """Verify this installation end to end against known-good values.
+
+    Runs the real pipeline -- prepare, dock, rank -- on a small bundled case and
+    compares the affinities to values recorded from a good run. Unit tests show
+    the code is self-consistent; this shows that *this machine* produces the same
+    numbers as everywhere else, which is the claim that matters.
+    """
+    from drydock.core.selftest import run as run_selftest
+
+    click.echo("running self-test…\n")
+    result = run_selftest(work_dir=work_dir, keep=keep)
+
+    for check in result.checks:
+        click.secho(str(check), fg="green" if check.passed else "red")
+
+    if result.affinities:
+        click.echo("\naffinities:")
+        for ligand_id, affinity in sorted(result.affinities.items(), key=lambda kv: kv[1]):
+            click.echo(f"  {ligand_id:<28} {affinity:+.2f} kcal/mol")
+
+    click.echo(f"\n{len(result.checks)} checks in {result.elapsed_s:.1f}s")
+    if result.passed:
+        click.secho("self-test passed", fg="green")
+    else:
+        click.secho(f"self-test FAILED ({len(result.failures)} checks)", fg="red")
+        raise SystemExit(1)
+
+
 @main.group()
 def dev() -> None:
     """Development helpers. Not part of the screening workflow."""
+
+
+@dev.command("record-reference")
+@click.option(
+    "-o", "--out", type=click.Path(path_type=Path), default=None,
+    help="Where to write. Defaults to the bundled reference.",
+)
+def record_reference_cmd(out: Path | None) -> None:
+    """Record the current affinities as the self-test reference.
+
+    Separate from 'selftest' on purpose: a self-test that writes its own
+    expectations when they are missing passes unconditionally and verifies
+    nothing. Re-record only after a deliberate change, and say so in the commit.
+    """
+    from drydock.core.selftest import record_reference
+
+    path = record_reference(out)
+    click.echo(f"wrote {path}")
+    click.echo(json.loads(path.read_text())["affinities"])
 
 
 @dev.command("synthesize-run")
