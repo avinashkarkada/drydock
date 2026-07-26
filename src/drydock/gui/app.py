@@ -4,12 +4,13 @@ A monitor, not a controller. It reads a run directory and displays it; the
 screening process is launched detached and is not owned by this window. Closing
 it does not stop a run, and a run crashing does not take the window with it.
 
-The interface is:
+The interface follows the order the work is done:
 
-* **Run** -- which directory is being watched, and how far along it is.
-* **Setup** -- receptor, ligands, box and engine; starts a detached screen.
-* **Results** -- a virtualised table of every ligand scored so far.
-* **Activity** -- a bounded log of recent events.
+* **1. Ligands** -- convert, protonate, optimise and prepare a library.
+* **2. Screen** -- receptor, box and engine; starts a detached screen.
+* **3. Results** -- a virtualised table of every ligand scored so far.
+
+with a run bar and a bounded activity log framing them.
 
 Starting a screen from Setup spawns ``drydock screen`` in its own session and
 then simply attaches to the run directory it creates. The window holds no handle
@@ -44,6 +45,7 @@ from PySide6.QtWidgets import (
 
 from drydock import __version__
 from drydock.core.rundir import LigandResult, RunStatus
+from drydock.gui.ligand_panel import LigandPanel
 from drydock.gui.model import ResultsTableModel
 from drydock.gui.setup_panel import SetupPanel
 from drydock.gui.watcher import RunWatcher
@@ -152,19 +154,29 @@ class MainWindow(QMainWindow):
         # negative affinity, i.e. the best hits, at the top.
         self._table.sortByColumn(AFFINITY_COLUMN, Qt.SortOrder.AscendingOrder)
 
+        self._ligands = LigandPanel()
         self._setup = SetupPanel()
+
+        # Finishing preparation fills in the ligand directory on the Setup tab and
+        # moves the user there: the two stages are separate processes but one
+        # workflow, and re-typing the path is the sort of friction that leads to
+        # screening the wrong directory.
+        self._ligands.prepared.connect(self._on_ligands_prepared)
         # Launching a screen attaches this window to the run it just started, so
         # the user lands on results rather than having to find the directory.
         self._setup.runStarted.connect(self._on_run_started)
 
-        setup_scroll = QScrollArea()
-        setup_scroll.setWidget(self._setup)
-        setup_scroll.setWidgetResizable(True)
-
         self._tabs = tabs
-        tabs.addTab(setup_scroll, "Setup")
-        tabs.addTab(self._table, "Results")
+        # Ordered as the work is done: prepare, then screen, then read results.
+        tabs.addTab(_scrolled(self._ligands), "1. Ligands")
+        tabs.addTab(_scrolled(self._setup), "2. Screen")
+        tabs.addTab(self._table, "3. Results")
         return tabs
+
+    def _on_ligands_prepared(self, ligand_dir: str) -> None:
+        self._setup.ligands.set_path(ligand_dir)
+        self._tabs.setCurrentIndex(1)
+        self._log_line(f"ligands prepared: {ligand_dir}")
 
     def _on_run_started(self, run_dir: str) -> None:
         self.attach_run(run_dir)
@@ -278,6 +290,14 @@ class MainWindow(QMainWindow):
     def _log_line(self, text: str) -> None:
         self._activity.append(text)
         self._log.appendPlainText(text)
+
+
+def _scrolled(widget: QWidget) -> QScrollArea:
+    """Wrap a panel so it stays usable on a short window."""
+    area = QScrollArea()
+    area.setWidget(widget)
+    area.setWidgetResizable(True)
+    return area
 
 
 def _format_duration(seconds: float) -> str:

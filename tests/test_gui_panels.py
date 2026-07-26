@@ -1,0 +1,223 @@
+"""Tests for the Ligands and Screen panels.
+
+Focused on the command each panel builds and on the completion handling, rather
+than on layout. The command is where a wrong flag silently changes the chemistry
+of a whole library; the completion handling is where a panel can fire its
+"finished" signal more than once, which it did.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from drydock.gui.ligand_panel import LigandPanel
+from drydock.gui.setup_panel import SetupPanel
+
+
+def _flag_value(command: list[str], flag: str) -> str | None:
+    return command[command.index(flag) + 1] if flag in command else None
+
+
+class TestLigandPanelCommand:
+    @pytest.fixture
+    def panel(self, qapp, tmp_path):
+        panel = LigandPanel()
+        library = tmp_path / "lib.smi"
+        library.write_text("CCO ethanol\n", encoding="utf-8")
+        panel.library.set_path(str(library))
+        panel.out_dir.set_path(str(tmp_path / "out"))
+        return panel
+
+    def test_builds_a_command_with_the_defaults(self, panel):
+        command = panel._build_command()
+
+        assert command is not None
+        assert "prep-ligands" in command
+        assert _flag_value(command, "--ph") == "7.4"
+        assert "--optimize" in command
+        assert "--macrocycles" in command
+
+    def test_missing_library_refuses_and_explains(self, qapp):
+        panel = LigandPanel()
+        panel.out_dir.set_path("/tmp/out")
+        assert panel._build_command() is None
+        assert "library" in panel._status.text().lower()
+
+    def test_missing_output_refuses_and_explains(self, qapp, tmp_path):
+        panel = LigandPanel()
+        panel.library.set_path(str(tmp_path / "lib.smi"))
+        assert panel._build_command() is None
+        assert "output" in panel._status.text().lower()
+
+    def test_geometry_choice_maps_to_the_right_flag(self, panel):
+        """Selecting 'keep input coordinates' must not still regenerate them."""
+        panel.geometry.setCurrentIndex(1)
+        command = panel._build_command()
+
+        assert "--no-optimize" in command
+        assert "--optimize" not in command
+
+    def test_rigid_macrocycles_flag(self, panel):
+        panel.macrocycles.setChecked(False)
+        command = panel._build_command()
+
+        assert "--rigid-macrocycles" in command
+        assert "--macrocycles" not in command
+
+    def test_ph_is_passed_through(self, panel):
+        panel.ph.setValue(5.0)
+        assert _flag_value(panel._build_command(), "--ph") == "5.0"
+
+    def test_conformers_are_passed_through(self, panel):
+        panel.conformers.setValue(4)
+        assert _flag_value(panel._build_command(), "--conformers") == "4"
+
+    def test_optional_flags_are_omitted_at_their_defaults(self, panel):
+        """A zero-valued spinbox means 'unset', not 'zero'."""
+        command = panel._build_command()
+
+        assert "--max-torsions" not in command
+        assert "--limit" not in command
+        assert "--id-field" not in command
+        assert "--tautomers" not in command
+
+    def test_optional_flags_appear_when_set(self, panel):
+        panel.max_torsions.setValue(12)
+        panel.limit.setValue(500)
+        panel.id_field.setText("CATALOG_ID")
+        panel.tautomers.setChecked(True)
+        command = panel._build_command()
+
+        assert _flag_value(command, "--max-torsions") == "12"
+        assert _flag_value(command, "--limit") == "500"
+        assert _flag_value(command, "--id-field") == "CATALOG_ID"
+        assert "--tautomers" in command
+
+    def test_resume_is_on_by_default_and_can_be_disabled(self, panel):
+        assert "--no-resume" not in panel._build_command()
+
+        panel.resume.setChecked(False)
+        assert "--no-resume" in panel._build_command()
+
+
+class TestLigandPanelCompletion:
+    def test_prepared_is_not_emitted_before_a_run(self, qapp, tmp_path):
+        panel = LigandPanel()
+        panel.out_dir.set_path(str(tmp_path))
+
+        emitted: list[str] = []
+        panel.prepared.connect(emitted.append)
+        panel._poll()
+
+        assert emitted == [], "polling while idle must do nothing"
+
+    def test_prepared_is_emitted_exactly_once(self, qapp, tmp_path):
+        """The regression: _finish() clears _process, which the completion check
+        then read as 'finished' again, re-emitting on every subsequent poll."""
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "manifest.csv").write_text("ligand_id\nA\n", encoding="utf-8")
+        (out / "prep.json").write_text('{"summary": {"prepared": 1, "failed": 0}}', "utf-8")
+
+        panel = LigandPanel()
+        panel.out_dir.set_path(str(out))
+        panel._running = True
+        panel._process = None
+
+        emitted: list[str] = []
+        panel.prepared.connect(emitted.append)
+
+        panel._poll()
+        panel._poll()
+        panel._poll()
+
+        assert len(emitted) == 1
+
+    def test_finishing_re_enables_the_prepare_button(self, qapp, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "manifest.csv").write_text("ligand_id\nA\n", encoding="utf-8")
+
+        panel = LigandPanel()
+        panel.out_dir.set_path(str(out))
+        panel._running = True
+        panel._prepare_button.setEnabled(False)
+        panel._poll()
+
+        assert panel._prepare_button.isEnabled()
+        assert not panel._stop_button.isEnabled()
+
+
+class TestSetupPanelCommand:
+    @pytest.fixture
+    def panel(self, qapp, tmp_path):
+        panel = SetupPanel()
+        receptor = tmp_path / "rec.pdbqt"
+        receptor.write_text("ATOM\n", encoding="utf-8")
+        panel.receptor.set_path(str(receptor))
+        panel.ligands.set_path(str(tmp_path / "ligs"))
+        panel.run_dir.set_path(str(tmp_path / "run"))
+        return panel
+
+    def test_requires_a_box_definition(self, panel):
+        assert panel._build_command() is None
+        assert "box" in panel._status.text().lower()
+
+    def test_residue_box(self, panel):
+        panel.residues.setText("401,405,411")
+        command = panel._build_command()
+
+        assert _flag_value(command, "--residues") == "401,405,411"
+        assert "--center" not in command
+
+    def test_explicit_box_takes_precedence_over_residues(self, panel):
+        panel.residues.setText("401,405")
+        panel.center.setText("1,2,3")
+        panel.size.setText("20,20,20")
+        command = panel._build_command()
+
+        assert _flag_value(command, "--center") == "1,2,3"
+        assert "--residues" not in command
+
+    def test_chain_is_included_only_when_given(self, panel):
+        panel.residues.setText("401")
+        assert "--chain" not in panel._build_command()
+
+        panel.chain.setText("B")
+        assert _flag_value(panel._build_command(), "--chain") == "B"
+
+    def test_ad4_engine_requires_maps(self, panel):
+        panel.residues.setText("401")
+        panel.engine.setCurrentText("ad4")
+
+        assert panel._build_command() is None
+        assert "maps" in panel._status.text().lower()
+
+    def test_ad4_engine_with_maps_builds(self, panel, tmp_path):
+        panel.residues.setText("401")
+        panel.engine.setCurrentText("ad4")
+        panel.maps.set_path(str(tmp_path / "maps"))
+        command = panel._build_command()
+
+        assert _flag_value(command, "--engine") == "ad4"
+        assert "--maps" in command
+
+    def test_missing_inputs_are_named(self, qapp):
+        panel = SetupPanel()
+        panel.residues.setText("401")
+        assert panel._build_command() is None
+
+        message = panel._status.text().lower()
+        for expected in ("receptor", "ligand", "run"):
+            assert expected in message
+
+    def test_search_settings_are_passed_through(self, panel):
+        panel.residues.setText("401")
+        panel.exhaustiveness.setValue(16)
+        panel.modes.setValue(20)
+        panel.seed.setValue(99)
+        command = panel._build_command()
+
+        assert _flag_value(command, "--exhaustiveness") == "16"
+        assert _flag_value(command, "--modes") == "20"
+        assert _flag_value(command, "--seed") == "99"

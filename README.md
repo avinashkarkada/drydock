@@ -101,6 +101,11 @@ drydock status runs/mmp9
 drydock-gui
 ```
 
+The GUI has three tabs in the order the work is done: **1. Ligands** (prepare a
+library), **2. Screen** (receptor, box, engine) and **3. Results**. Both stages
+launch as detached processes and are watched through the directories they write,
+so the window can be closed and reopened at any point without disturbing a run.
+
 For a zinc metalloprotein, add the AutoDock4Zn steps before screening:
 
 ```bash

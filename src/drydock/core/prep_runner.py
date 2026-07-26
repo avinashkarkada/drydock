@@ -146,6 +146,41 @@ class PrepDir:
         with open(self.manifest_file, newline="", encoding="utf-8") as fh:
             return list(csv.DictReader(fh))
 
+    def progress(self) -> tuple[int, int]:
+        """Rows written so far, as ``(prepared, failed)``.
+
+        Counts newlines rather than parsing CSV, so a watcher can poll a
+        preparation run of any size in constant time. Approximate by a row or two
+        while a flush is in flight, which is the right trade for a progress
+        indicator -- the manifest itself remains the authority.
+        """
+        return (_count_data_rows(self.manifest_file), _count_data_rows(self.failures_file))
+
+    def is_running(self) -> bool:
+        """True if preparation has started but not written its summary."""
+        return self.manifest_file.exists() and not self.info_file.exists()
+
+    def read_info(self) -> dict[str, Any] | None:
+        """The summary written when preparation finished, if it has."""
+        if not self.info_file.exists():
+            return None
+        try:
+            return json.loads(self.info_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+
+def _count_data_rows(path: Path) -> int:
+    """Count lines in a CSV, excluding the header. Zero if absent."""
+    if not path.exists():
+        return 0
+    try:
+        with open(path, "rb") as fh:
+            lines = sum(1 for _ in fh)
+    except OSError:
+        return 0
+    return max(0, lines - 1)
+
 
 def _feed(
     library: Path,
