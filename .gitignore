@@ -1,0 +1,32 @@
+# pixi
+.pixi/
+*.egg-info/
+__pycache__/
+*.py[cod]
+
+# build
+build/
+dist/
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# drydock run artefacts — screening output is data, not source
+runs/
+*.pdbqt
+!tests/data/**/*.pdbqt
+!src/drydock/data/**/*.pdbqt
+ligands/
+*.dlg
+*.map
+*.fld
+*.xyz
+*.gpf
+*.glg
+
+# editors / os
+.vscode/
+.idea/
+*.swp
+.DS_Store

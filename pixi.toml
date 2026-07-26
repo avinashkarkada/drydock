@@ -1,0 +1,61 @@
+[project]
+name = "drydock"
+version = "0.1.0"
+description = "Reproducible high-throughput virtual screening: ligand preparation and batch molecular docking"
+authors = ["Drydock contributors"]
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+
+[dependencies]
+python = "3.12.*"
+
+# --- docking engines -------------------------------------------------------
+# vina 1.2.x provides both the `vina` CLI and the Python API. The Python API is
+# what the engine layer uses: it avoids stdout parsing and exposes ad4 scoring
+# with pre-computed autogrid4 maps.
+vina = "1.2.7.*"
+# autodock and autogrid ship as separate conda packages. autogrid4 computes the
+# grid maps that the AD4/AD4Zn scoring path needs, and is required even when the
+# search itself is run by vina rather than autodock4. Both pinned to 4.2.6, the
+# version AutoDock4Zn was published against.
+autodock = "4.2.6.*"
+autogrid = "==4.2.6"
+
+# --- cheminformatics -------------------------------------------------------
+rdkit = "2025.*"
+numpy = "*"
+pandas = "*"
+scipy = "*"
+
+# --- gui -------------------------------------------------------------------
+pyside6 = "*"
+
+# --- cli / io --------------------------------------------------------------
+click = "*"
+tomli-w = "*"
+tqdm = "*"
+gemmi = ">=0.7.5,<0.8"
+
+[pypi-dependencies]
+# Meeko converts RDKit molecules to PDBQT and handles macrocycle flexibility.
+meeko = "==0.7.1"
+# Forli lab "Scrubber": protonation state enumeration at a target pH.
+# NB: the PyPI package literally named `scrubber` is an unrelated project.
+molscrub = "==0.2.2"
+drydock = { path = ".", editable = true }
+
+[feature.dev.dependencies]
+pytest = "*"
+pytest-cov = "*"
+ruff = "*"
+
+[environments]
+default = { solve-group = "main" }
+dev = { features = ["dev"], solve-group = "main" }
+
+[tasks]
+test = "pytest -q"
+lint = "ruff check src tests"
+selftest = "drydock selftest"

@@ -1,0 +1,117 @@
+cff-version: 1.2.0
+title: "Drydock: reproducible high-throughput virtual screening"
+message: "If you use Drydock in your research, please cite it and the underlying docking engines."
+type: software
+authors:
+  - name: "Drydock contributors"
+repository-code: "https://github.com/<user>/drydock"
+license: GPL-3.0-or-later
+version: 0.1.0
+abstract: >-
+  Drydock prepares compound libraries and runs batch molecular docking against a
+  prepared receptor, producing a ranked CSV of affinities joined to compound
+  descriptors. Screening runs as a detached, resumable process with pinned
+  dependencies and deterministic per-ligand seeds, so results reproduce across
+  machines. Supports AutoDock Vina, Vinardo, and the AutoDock4/AutoDock4Zn
+  scoring functions.
+keywords:
+  - virtual screening
+  - molecular docking
+  - AutoDock Vina
+  - AutoDock4Zn
+  - cheminformatics
+  - reproducibility
+
+references:
+  - type: article
+    title: >-
+      AutoDock Vina: improving the speed and accuracy of docking with a new
+      scoring function, efficient optimization, and multithreading
+    authors:
+      - family-names: Trott
+        given-names: Oleg
+      - family-names: Olson
+        given-names: "Arthur J."
+    journal: "Journal of Computational Chemistry"
+    volume: 31
+    start: 455
+    year: 2010
+    doi: 10.1002/jcc.21334
+  - type: article
+    title: >-
+      AutoDock Vina 1.2.0: New Docking Methods, Expanded Force Field, and Python
+      Bindings
+    authors:
+      - family-names: Eberhardt
+        given-names: Jerome
+      - family-names: Santos-Martins
+        given-names: Diogo
+      - family-names: Tillack
+        given-names: "Andreas F."
+      - family-names: Forli
+        given-names: Stefano
+    journal: "Journal of Chemical Information and Modeling"
+    volume: 61
+    start: 3891
+    year: 2021
+    doi: 10.1021/acs.jcim.1c00203
+  - type: article
+    title: >-
+      AutoDock4Zn: An Improved AutoDock Force Field for Small-Molecule Docking to
+      Zinc Metalloproteins
+    authors:
+      - family-names: Santos-Martins
+        given-names: Diogo
+      - family-names: Forli
+        given-names: Stefano
+      - family-names: Ramos
+        given-names: "Maria J."
+      - family-names: Olson
+        given-names: "Arthur J."
+    journal: "Journal of Chemical Information and Modeling"
+    volume: 54
+    start: 2371
+    year: 2014
+    doi: 10.1021/ci500209e
+  - type: article
+    title: >-
+      AMDock: a versatile graphical tool for assisting molecular docking with
+      Autodock Vina and Autodock4
+    authors:
+      - family-names: "Valdés-Tresanco"
+        given-names: "Mario S."
+      - family-names: "Valdés-Tresanco"
+        given-names: "Mario E."
+      - family-names: Valiente
+        given-names: "Pedro A."
+      - family-names: Moreno
+        given-names: Ernesto
+    journal: "Biology Direct"
+    volume: 15
+    start: 12
+    year: 2020
+    doi: 10.1186/s13062-020-00267-2
+  - type: article
+    title: >-
+      AutoDock4 and AutoDockTools4: Automated docking with selective receptor
+      flexibility
+    authors:
+      - family-names: Morris
+        given-names: "Garrett M."
+      - family-names: Huey
+        given-names: Ruth
+      - family-names: Lindstrom
+        given-names: William
+      - family-names: Sanner
+        given-names: "Michel F."
+      - family-names: Belew
+        given-names: "Richard K."
+      - family-names: Goodsell
+        given-names: "David S."
+      - family-names: Olson
+        given-names: "Arthur J."
+    journal: "Journal of Computational Chemistry"
+    volume: 30
+    start: 2785
+    year: 2009
+    doi: 10.1002/jcc.21256
