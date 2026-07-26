@@ -145,6 +145,398 @@ def survey_cmd(library: Path, id_field: str | None) -> None:
             click.echo(f"  {cid}: {n}")
 
 
+@main.command("screen")
+@click.option(
+    "-r", "--receptor", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Prepared receptor PDBQT.",
+)
+@click.option(
+    "-l", "--ligands", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Prepared ligand directory (from prep-ligands).",
+)
+@click.option(
+    "-o", "--run", "run_dir", required=True, type=click.Path(path_type=Path),
+    help="Run directory to create or resume.",
+)
+@click.option("--residues", default=None, help="Residues defining the box, e.g. 187,188,401.")
+@click.option("--chain", default=None, help="Restrict residue selection to one chain.")
+@click.option("--pad", default=5.0, show_default=True, help="Box padding in Angstroms.")
+@click.option("--center", default=None, help="Explicit box centre as x,y,z.")
+@click.option("--size", default=None, help="Explicit box size as x,y,z.")
+@click.option(
+    "-e", "--engine", default="vina", show_default=True,
+    type=click.Choice(["vina", "vinardo", "ad4", "autodock4"]),
+    help="Scoring function. Use ad4 for metalloproteins (AutoDock4Zn).",
+)
+@click.option("--exhaustiveness", default=8, show_default=True, help="Search effort per ligand.")
+@click.option("--modes", default=9, show_default=True, help="Binding modes to report.")
+@click.option("--seed", default=0, show_default=True, help="Global seed for reproducibility.")
+@click.option("-j", "--workers", default=0, help="Parallel docking jobs. 0 means one per CPU.")
+@click.option("--limit", type=int, default=None, help="Only screen this many ligands.")
+@click.option("--maps", type=click.Path(path_type=Path), default=None, help="AutoGrid maps (ad4).")
+@click.option("--no-resume", is_flag=True, help="Re-dock ligands already journalled.")
+@click.option("--flat", is_flag=True, help="Do not group stereoisomers in results.csv.")
+def screen_cmd(
+    receptor: Path,
+    ligands: Path,
+    run_dir: Path,
+    residues: str | None,
+    chain: str | None,
+    pad: float,
+    center: str | None,
+    size: str | None,
+    engine: str,
+    exhaustiveness: int,
+    modes: int,
+    seed: int,
+    workers: int,
+    limit: int | None,
+    maps: Path | None,
+    no_resume: bool,
+    flat: bool,
+) -> None:
+    """Dock a prepared library against a prepared receptor.
+
+    Writes every finished ligand to the run directory immediately, so an
+    interrupted screen resumes without losing work, and the GUI can watch a run
+    it does not own.
+    """
+    from drydock.core.box import Box
+    from drydock.core.prep_runner import PrepDir
+    from drydock.core.receptor import box_from_residues, inspect
+    from drydock.core.results import write_results
+    from drydock.core.rundir import RunDir
+    from drydock.core.screen import run_screen, write_config
+    from drydock.engines.base import DockConfig
+
+    report = inspect(receptor)
+    for problem in report.problems:
+        click.secho(f"receptor problem: {problem}", fg="red")
+    if report.problems:
+        click.secho(
+            "continuing anyway -- results will be affected. "
+            "Run 'drydock check-receptor' for detail.",
+            fg="yellow",
+        )
+
+    if center and size:
+        box = Box(
+            tuple(float(v) for v in center.split(",")),
+            tuple(float(v) for v in size.split(",")),
+        )
+    elif residues:
+        numbers = [int(v) for v in residues.replace(" ", "").split(",") if v]
+        try:
+            box, _ = box_from_residues(receptor, numbers, padding=pad, chain=chain)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    else:
+        raise click.ClickException("give either --residues or both --center and --size")
+
+    click.echo(f"box: {box}")
+    for warning in box.warnings():
+        click.secho(f"warning: {warning}", fg="yellow")
+
+    prep = PrepDir(ligands)
+    pdbqt_dir = prep.pdbqt_dir if prep.pdbqt_dir.is_dir() else ligands
+
+    config = DockConfig(
+        receptor=str(receptor),
+        box=box,
+        engine=engine,
+        exhaustiveness=exhaustiveness,
+        n_modes=modes,
+        seed=seed,
+        cpu=1,
+        maps_dir=str(maps) if maps else None,
+    )
+
+    run = RunDir(run_dir).create()
+    write_config(run, config, str(pdbqt_dir))
+
+    with click.progressbar(length=100, label=f"docking ({engine})") as bar:
+        state = {"last": 0}
+
+        def on_progress(status) -> None:
+            pct = int(100 * status.fraction)
+            bar.update(max(0, pct - state["last"]))
+            state["last"] = pct
+
+        status = run_screen(
+            run_dir, pdbqt_dir, config,
+            n_workers=workers, limit=limit, resume=not no_resume, progress=on_progress,
+        )
+
+    click.echo(
+        f"docked {status.completed}, failed {status.failed} "
+        f"in {_format_duration((status.finished_at or 0) - (status.started_at or 0))}"
+    )
+
+    results, all_modes, n = write_results(
+        run_dir, prep.manifest_file, group_stereoisomers=not flat
+    )
+    click.echo(f"results:   {results}  ({n} rows)")
+    click.echo(f"all modes: {all_modes}")
+
+
+@main.command("benchmark")
+@click.option(
+    "-r", "--receptor", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Prepared receptor PDBQT.",
+)
+@click.option(
+    "-l", "--ligands", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Prepared ligand directory.",
+)
+@click.option("--residues", default=None, help="Residues defining the box.")
+@click.option("--chain", default=None, help="Restrict residue selection to one chain.")
+@click.option("--pad", default=5.0, show_default=True, help="Box padding in Angstroms.")
+@click.option("--center", default=None, help="Explicit box centre as x,y,z.")
+@click.option("--size", default=None, help="Explicit box size as x,y,z.")
+@click.option(
+    "-e", "--engine", default="vina", show_default=True,
+    type=click.Choice(["vina", "vinardo", "ad4"]),
+)
+@click.option(
+    "--exhaustiveness", "exhaustiveness_values", multiple=True, type=int,
+    help="Search effort to test. Repeat to compare several.",
+)
+@click.option("-n", "--sample", default=25, show_default=True, help="Ligands to time.")
+@click.option("-j", "--workers", default=0, help="Parallel jobs. 0 means one per CPU.")
+@click.option(
+    "--library-size", default=None, type=int,
+    help="Library size to project onto. Defaults to the prepared directory's size.",
+)
+@click.option("--seed", default=0, show_default=True, help="Seed for sampling and docking.")
+def benchmark_cmd(
+    receptor: Path,
+    ligands: Path,
+    residues: str | None,
+    chain: str | None,
+    pad: float,
+    center: str | None,
+    size: str | None,
+    engine: str,
+    exhaustiveness_values: tuple[int, ...],
+    sample: int,
+    workers: int,
+    library_size: int | None,
+    seed: int,
+) -> None:
+    """Measure throughput before committing to a long run.
+
+    Docks a representative sample and projects the full run. Worth doing every
+    time: cost per ligand varies by more than an order of magnitude with box
+    volume and ligand flexibility, so an estimate from another target is worth
+    very little.
+    """
+    import os
+
+    from drydock.core.benchmark import benchmark, format_comparison
+    from drydock.core.box import Box
+    from drydock.core.prep_runner import PrepDir
+    from drydock.core.receptor import box_from_residues
+    from drydock.core.screen import iter_ligands
+    from drydock.engines.base import DockConfig
+
+    if center and size:
+        box = Box(
+            tuple(float(v) for v in center.split(",")),
+            tuple(float(v) for v in size.split(",")),
+        )
+    elif residues:
+        numbers = [int(v) for v in residues.replace(" ", "").split(",") if v]
+        try:
+            box, _ = box_from_residues(receptor, numbers, padding=pad, chain=chain)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    else:
+        raise click.ClickException("give either --residues or both --center and --size")
+
+    prep = PrepDir(ligands)
+    pdbqt_dir = prep.pdbqt_dir if prep.pdbqt_dir.is_dir() else ligands
+
+    n_workers = workers or (os.cpu_count() or 1)
+    n_library = library_size or len(list(iter_ligands(pdbqt_dir)))
+
+    click.echo(f"box: {box}")
+    for warning in box.warnings():
+        click.secho(f"warning: {warning}", fg="yellow")
+    click.echo(f"timing {sample} ligands on {n_workers} workers…\n")
+
+    results = []
+    for exhaustiveness in exhaustiveness_values or (8,):
+        config = DockConfig(
+            receptor=str(receptor), box=box, engine=engine,
+            exhaustiveness=exhaustiveness, seed=seed, cpu=1,
+        )
+        results.append(
+            benchmark(
+                pdbqt_dir, config,
+                label=f"{engine} exh={exhaustiveness}",
+                n=sample, n_workers=n_workers, seed=seed,
+            )
+        )
+
+    click.echo(format_comparison(results, n_library, n_workers))
+
+
+@main.command("report")
+@click.argument("run_dir", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "-m", "--manifest", type=click.Path(exists=True, path_type=Path), default=None,
+    help="Ligand manifest.csv, to join descriptors onto the results.",
+)
+@click.option("--flat", is_flag=True, help="Do not group stereoisomers.")
+@click.option("--top", default=20, show_default=True, help="Rows to print.")
+def report_cmd(run_dir: Path, manifest: Path | None, flat: bool, top: int) -> None:
+    """Rebuild results.csv from a run's journal.
+
+    Safe to run against a screen still in progress: it reports on whatever has
+    finished so far.
+    """
+    from drydock.core.results import write_results
+
+    results, all_modes, n = write_results(run_dir, manifest, group_stereoisomers=not flat)
+    click.echo(f"wrote {results} ({n} rows) and {all_modes}")
+
+    import csv as _csv
+
+    with open(results, newline="", encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(fh))[:top]
+    if not rows:
+        return
+
+    click.echo()
+    click.echo(f"{'rank':>4}  {'compound':<16} {'affinity':>9} {'LE':>7} {'MW':>8}  formula")
+    for row in rows:
+        le = row.get("ligand_efficiency") or ""
+        click.echo(
+            f"{row['rank']:>4}  {row['compound_id']:<16} "
+            f"{row['best_affinity'] or '-':>9} {le[:6]:>7} "
+            f"{(row.get('mw') or '')[:7]:>8}  {row.get('formula', '')}"
+        )
+
+
+@main.command("check-receptor")
+@click.argument("receptor", type=click.Path(exists=True, path_type=Path))
+def check_receptor(receptor: Path) -> None:
+    """Check a prepared receptor for problems that would distort results.
+
+    Receptor preparation fails in ways that produce a perfectly valid file. The
+    two worth checking every time: missing polar hydrogens, which removes every
+    hydrogen-bond donor from the protein, and atom types in the wrong case, which
+    AutoDock Vina rejects outright.
+    """
+    from drydock.core.receptor import inspect
+
+    report = inspect(receptor)
+
+    click.echo(f"atoms:          {report.n_atoms}")
+    click.echo(f"chains:         {', '.join(report.chains) or '-'}")
+    if report.residue_range:
+        click.echo(f"residues:       {report.residue_range[0]}-{report.residue_range[1]}")
+    click.echo(f"polar H (HD):   {report.n_polar_hydrogens}")
+    click.echo(f"metals:         {', '.join(report.metals) or 'none'}")
+    click.echo(
+        "atom types:     "
+        + ", ".join(f"{t or '(none)'}={n}" for t, n in report.atom_types.items())
+    )
+
+    for note in report.notes:
+        click.echo(f"\nnote: {note}")
+    for problem in report.problems:
+        click.secho(f"\nPROBLEM: {problem}", fg="red")
+
+    if report.ok:
+        click.secho("\nreceptor looks usable", fg="green")
+    else:
+        raise SystemExit(1)
+
+
+@main.command("box")
+@click.option(
+    "-r", "--receptor", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Prepared receptor PDBQT.",
+)
+@click.option(
+    "--residues", default=None,
+    help="Comma-separated residue numbers lining the site, e.g. 187,188,401,405.",
+)
+@click.option("--chain", default=None, help="Restrict residue selection to one chain.")
+@click.option("--pad", default=5.0, show_default=True, help="Angstroms added on every side.")
+@click.option("--sidechains-only", is_flag=True, help="Ignore backbone atoms, tightening the box.")
+@click.option("--cubic", is_flag=True, help="Force equal box dimensions.")
+@click.option("--center", default=None, help="Explicit centre as x,y,z (instead of --residues).")
+@click.option("--size", default=None, help="Explicit size as x,y,z (instead of --residues).")
+@click.option("-o", "--out", type=click.Path(path_type=Path), default=None, help="Write a config.")
+def box_cmd(
+    receptor: Path,
+    residues: str | None,
+    chain: str | None,
+    pad: float,
+    sidechains_only: bool,
+    cubic: bool,
+    center: str | None,
+    size: str | None,
+    out: Path | None,
+) -> None:
+    """Define the search box, explicitly or from active-site residues.
+
+    There is no pocket finder: when the site is known, guessing at it adds a
+    failure mode without adding information.
+    """
+    from drydock.core.box import Box
+    from drydock.core.receptor import box_from_residues, read_pdbqt
+
+    if center and size:
+        box = Box(
+            tuple(float(v) for v in center.split(",")),
+            tuple(float(v) for v in size.split(",")),
+        )
+        selected = []
+    elif residues:
+        numbers = [int(v) for v in residues.replace(" ", "").split(",") if v]
+        try:
+            box, selected = box_from_residues(
+                receptor, numbers, padding=pad, chain=chain,
+                sidechains_only=sidechains_only, cubic=cubic,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    else:
+        raise click.ClickException("give either --residues or both --center and --size")
+
+    click.echo(str(box))
+    if selected:
+        found = sorted({a.residue_seq for a in selected})
+        click.echo(f"derived from {len(selected)} atoms of residues {found}")
+
+    # Anything else inside the box competes with the intended site for poses.
+    metals_inside = [
+        a for a in read_pdbqt(receptor) if a.is_metal and box.contains(a.coordinates)
+    ]
+    if metals_inside:
+        click.echo(
+            "metals inside the box: "
+            + ", ".join(f"{a.atom_type}{a.residue_seq}" for a in metals_inside)
+        )
+        if len(metals_inside) > 1:
+            click.secho(
+                "note: more than one metal site falls inside this box, so ligands "
+                "may dock at a site other than the intended one. Consider reducing "
+                "--pad or using --sidechains-only.",
+                fg="yellow",
+            )
+
+    for warning in box.warnings():
+        click.secho(f"warning: {warning}", fg="yellow")
+
+    if out:
+        out.write_text(box.to_vina_config(receptor=str(receptor)), encoding="utf-8")
+        click.echo(f"wrote {out}")
+
+
 @main.command()
 @click.argument("run_dir", type=click.Path(path_type=Path))
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON.")
