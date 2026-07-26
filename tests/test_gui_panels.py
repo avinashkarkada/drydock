@@ -18,6 +18,77 @@ def _flag_value(command: list[str], flag: str) -> str | None:
     return command[command.index(flag) + 1] if flag in command else None
 
 
+def _fake_maps_dir(path):
+    """A directory shaped like one autogrid4 produces."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "receptor.maps.fld").write_text("# fld\n", encoding="utf-8")
+    for atom_type in ("C", "A", "N", "OA", "HD"):
+        (path / f"receptor.{atom_type}.map").write_text("# map\n", encoding="utf-8")
+    return path
+
+
+class TestMapsValidation:
+    """Checking a maps directory before a run rather than during it."""
+
+    def test_accepts_a_complete_map_set(self, tmp_path):
+        from drydock.core.zinc import maps_status
+
+        ok, detail = maps_status(_fake_maps_dir(tmp_path / "maps"))
+        assert ok
+        assert "5 maps" in detail
+
+    def test_rejects_a_receptor_directory_and_says_why(self, tmp_path):
+        from drydock.core.zinc import maps_status
+
+        receptors = tmp_path / "Receptor"
+        receptors.mkdir()
+        (receptors / "2OVX_TZ.pdbqt").write_text("ATOM\n", encoding="utf-8")
+
+        ok, detail = maps_status(receptors)
+        assert not ok
+        assert "receptor files" in detail
+        assert "drydock maps" in detail
+
+    def test_rejects_an_empty_directory(self, tmp_path):
+        from drydock.core.zinc import maps_status
+
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        ok, detail = maps_status(empty)
+
+        assert not ok
+        assert "no AutoGrid maps" in detail
+
+    def test_rejects_maps_missing_the_field_file(self, tmp_path):
+        """An incomplete set is worse than none: it looks plausible."""
+        from drydock.core.zinc import maps_status
+
+        partial = tmp_path / "partial"
+        partial.mkdir()
+        (partial / "receptor.C.map").write_text("# map\n", encoding="utf-8")
+
+        ok, detail = maps_status(partial)
+        assert not ok
+        assert "incomplete" in detail
+
+    def test_rejects_nothing_at_all(self):
+        from drydock.core.zinc import maps_status
+
+        ok, detail = maps_status(None)
+        assert not ok
+        assert "ad4" in detail
+
+    def test_rejects_a_path_that_is_not_a_directory(self, tmp_path):
+        from drydock.core.zinc import maps_status
+
+        file = tmp_path / "a.pdbqt"
+        file.write_text("", encoding="utf-8")
+
+        ok, detail = maps_status(file)
+        assert not ok
+        assert "not a directory" in detail
+
+
 class TestLigandPanelCommand:
     @pytest.fixture
     def panel(self, qapp, tmp_path):
@@ -193,14 +264,42 @@ class TestSetupPanelCommand:
         assert panel._build_command() is None
         assert "maps" in panel._status.text().lower()
 
-    def test_ad4_engine_with_maps_builds(self, panel, tmp_path):
+    def test_ad4_engine_with_real_maps_builds(self, panel, tmp_path):
+        maps = _fake_maps_dir(tmp_path / "maps")
         panel.residues.setText("401")
         panel.engine.setCurrentText("ad4")
-        panel.maps.set_path(str(tmp_path / "maps"))
+        panel.maps.set_path(str(maps))
         command = panel._build_command()
 
         assert _flag_value(command, "--engine") == "ad4"
         assert "--maps" in command
+
+    def test_ad4_refuses_a_directory_of_receptors(self, panel, tmp_path):
+        """The reported failure: pointing Maps at the receptor directory.
+
+        Left to Vina this surfaces as one identical failure per ligand, so a
+        47,000-compound screen fails 47,000 times and explains itself none of
+        them. It has to be refused before the run starts.
+        """
+        receptors = tmp_path / "Receptor"
+        receptors.mkdir()
+        (receptors / "2OVX.pdbqt").write_text("ATOM\n", encoding="utf-8")
+        (receptors / "2OVX_TZ.pdbqt").write_text("ATOM\n", encoding="utf-8")
+
+        panel.residues.setText("401")
+        panel.engine.setCurrentText("ad4")
+        panel.maps.set_path(str(receptors))
+
+        assert panel._build_command() is None
+        message = panel._status.text().lower()
+        assert "receptor files" in message
+        assert "drydock maps" in message
+
+    def test_maps_are_not_required_for_vina(self, panel):
+        panel.residues.setText("401")
+        panel.engine.setCurrentText("vina")
+
+        assert panel._build_command() is not None
 
     def test_missing_inputs_are_named(self, qapp):
         panel = SetupPanel()

@@ -94,11 +94,16 @@ class VinaEngine:
                     # than maps Vina derives itself, because the AD4 force field
                     # -- and AutoDock4Zn's zinc terms in particular -- are defined
                     # by the grid parameter file, not by anything Vina can infer.
-                    if not config.maps_dir:
-                        raise EngineError(
-                            "the ad4 engine needs AutoGrid maps; run 'drydock maps' first"
-                        )
-                    vina.load_maps(str(Path(config.maps_dir) / "receptor"))
+                    #
+                    # Checked here rather than left to Vina: its own message is
+                    # "Cannot find affinity maps with <path>", repeated once per
+                    # ligand, which describes the symptom and not the fix.
+                    from drydock.core.zinc import MAP_PREFIX, maps_status
+
+                    ok, detail = maps_status(config.maps_dir)
+                    if not ok:
+                        raise EngineError(detail)
+                    vina.load_maps(str(Path(config.maps_dir) / MAP_PREFIX))
                 else:
                     vina.set_receptor(config.receptor)
                     vina.compute_vina_maps(

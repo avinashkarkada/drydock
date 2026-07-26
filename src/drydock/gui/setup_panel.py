@@ -14,6 +14,7 @@ reader of a run directory that anything else could equally read.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -121,10 +122,10 @@ class SetupPanel(QWidget):
         form.addRow("Run directory", self.run_dir)
 
         note = QLabel(
-            "Receptors are not prepared here -- point Drydock at a PDBQT you "
-            "prepared yourself. Use <b>Check receptor</b> first: a receptor missing "
-            "polar hydrogens has no hydrogen-bond donors at all, and nothing else "
-            "will report that."
+            "Prepare these on the <b>Receptor</b> and <b>Ligands</b> tabs, or point "
+            "at files you prepared elsewhere. Either way use <b>Check receptor</b> "
+            "first: a receptor missing polar hydrogens has no hydrogen-bond donors "
+            "at all, and nothing else will report that."
         )
         note.setWordWrap(True)
         note.setTextFormat(Qt.TextFormat.RichText)
@@ -169,6 +170,11 @@ class SetupPanel(QWidget):
 
         self.maps = PathPicker("AutoGrid maps directory (ad4 only)", directory=True)
         self.maps.setEnabled(False)
+        self.maps.changed.connect(self._maps_changed)
+
+        self._maps_button = QPushButton("Generate maps…")
+        self._maps_button.setEnabled(False)
+        self._maps_button.clicked.connect(self.generate_maps)
 
         self.exhaustiveness = QSpinBox()
         self.exhaustiveness.setRange(1, 512)
@@ -190,8 +196,15 @@ class SetupPanel(QWidget):
         self.resume = QCheckBox("Resume if the run directory already has results")
         self.resume.setChecked(True)
 
+        maps_row = QHBoxLayout()
+        maps_row.setContentsMargins(0, 0, 0, 0)
+        maps_row.addWidget(self.maps, stretch=1)
+        maps_row.addWidget(self._maps_button)
+        maps_widget = QWidget()
+        maps_widget.setLayout(maps_row)
+
         form.addRow("Engine", self.engine)
-        form.addRow("Maps (ad4)", self.maps)
+        form.addRow("Maps (ad4)", maps_widget)
         form.addRow("Exhaustiveness", self.exhaustiveness)
         form.addRow("Binding modes", self.modes)
         form.addRow("Seed", self.seed)
@@ -202,12 +215,129 @@ class SetupPanel(QWidget):
     def _engine_changed(self, engine: str) -> None:
         needs_maps = engine == "ad4"
         self.maps.setEnabled(needs_maps)
+        self._maps_button.setEnabled(needs_maps)
         if needs_maps:
             self._note(
-                "The <b>ad4</b> engine uses AutoDock4/AutoDock4Zn scoring over "
-                "pre-computed AutoGrid maps. For a zinc metalloprotein, run "
-                "<tt>drydock add-zinc-pseudo</tt> then <tt>drydock maps</tt> first."
+                "The <b>ad4</b> engine scores against pre-computed AutoGrid maps, "
+                "which are separate from the receptor. Choose a directory and press "
+                "<b>Generate maps</b> — or point at one you made earlier with "
+                "<tt>drydock maps</tt>."
             )
+        else:
+            self._note("")
+
+    def _maps_changed(self, path: str) -> None:
+        """Report on a chosen maps directory as soon as it is picked.
+
+        Checking here rather than at launch matters: pointing at the directory
+        holding the receptor is a natural mistake, and left to Vina it surfaces as
+        a failure on every ligand in the run rather than once, now.
+        """
+        if self.engine.currentText() != "ad4" or not path:
+            return
+
+        from drydock.core.zinc import maps_status
+
+        ok, detail = maps_status(path)
+        if ok:
+            self._note(f"Maps look usable — {detail}.")
+        else:
+            self._note(detail, error=True)
+
+    def generate_maps(self) -> None:
+        """Compute AutoGrid maps for the current receptor and box."""
+        receptor = self.receptor.path()
+        if not receptor:
+            self._note("Choose a receptor first.", error=True)
+            return
+
+        box = self._resolve_box()
+        if box is None:
+            return
+
+        target = self.maps.path()
+        if not target:
+            self._note(
+                "Choose a directory for the maps first — somewhere separate from "
+                "the receptor, since roughly 50 MB of grid files will be written.",
+                error=True,
+            )
+            return
+
+        from drydock.core.receptor import inspect
+        from drydock.core.zinc import ZincError, run_autogrid, write_gpf
+
+        report = inspect(receptor)
+        if report.metals and not report.has_zinc_pseudo_atoms:
+            self._note(
+                "This receptor has metals but no zinc pseudo-atoms, so the maps "
+                "will not carry AutoDock4Zn's coordination geometry. Prepare it "
+                "again on the Receptor tab with pseudo-atoms enabled.",
+                error=True,
+            )
+            return
+
+        out = Path(target)
+        out.mkdir(parents=True, exist_ok=True)
+        local = out / Path(receptor).name
+        if Path(receptor).resolve() != local.resolve():
+            shutil.copy(receptor, local)
+
+        self._note(f"Running autogrid4 for {box}… this takes a few seconds.")
+        self._maps_button.setEnabled(False)
+        try:
+            gpf = write_gpf(local, box, out / "receptor.gpf")
+            maps_dir = run_autogrid(gpf, out)
+        except ZincError as exc:
+            self._note(str(exc).replace("\n", "<br>"), error=True)
+            return
+        finally:
+            self._maps_button.setEnabled(True)
+
+        written = sorted(maps_dir.glob("*.map"))
+        size_mb = sum(m.stat().st_size for m in written) / 1e6
+        self._note(
+            f"Wrote <b>{len(written)}</b> maps ({size_mb:.0f} MB) to <tt>{maps_dir}</tt>. "
+            "Ready to screen with the ad4 engine."
+        )
+
+    def _resolve_box(self):
+        """Build the box from whichever definition the user filled in."""
+        from drydock.core.box import Box
+        from drydock.core.receptor import box_from_residues
+
+        centre, size = self.center.text().strip(), self.size.text().strip()
+        if centre and size:
+            try:
+                return Box(
+                    tuple(float(v) for v in centre.split(",")),
+                    tuple(float(v) for v in size.split(",")),
+                )
+            except ValueError:
+                self._note("Centre and size must each be three numbers, x,y,z.", error=True)
+                return None
+
+        residues = self.residues.text().strip()
+        if not residues:
+            self._note(
+                "Define the box first: either active-site residues, or both an "
+                "explicit centre and size.",
+                error=True,
+            )
+            return None
+
+        try:
+            numbers = [int(v) for v in residues.replace(" ", "").split(",") if v]
+            box, _ = box_from_residues(
+                self.receptor.path(),
+                numbers,
+                padding=float(self.padding.value()),
+                chain=self.chain.text().strip() or None,
+            )
+        except ValueError as exc:
+            self._note(str(exc), error=True)
+            return None
+        return box
 
     # -- actions -----------------------------------------------------------
 
@@ -282,9 +412,16 @@ class SetupPanel(QWidget):
             )
             return None
 
-        if self.engine.currentText() == "ad4" and not self.maps.path():
-            self._note("The ad4 engine needs a maps directory.", error=True)
-            return None
+        if self.engine.currentText() == "ad4":
+            # Refuse to start rather than let every ligand fail identically. A
+            # screen launched against a directory with no maps produces one
+            # failure per compound and no usable diagnosis.
+            from drydock.core.zinc import maps_status
+
+            ok, detail = maps_status(self.maps.path())
+            if not ok:
+                self._note(detail, error=True)
+                return None
 
         command = [
             _drydock_executable(),

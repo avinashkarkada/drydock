@@ -77,6 +77,61 @@ class ZincError(RuntimeError):
     """Raised when zinc pseudo-atom placement or map generation fails."""
 
 
+# Vina loads AD4 maps by this prefix, so the files are always named receptor.*
+# regardless of what the input structure was called.
+MAP_PREFIX = "receptor"
+
+
+def maps_status(maps_dir: str | Path | None) -> tuple[bool, str]:
+    """Check whether a directory holds usable AutoGrid maps.
+
+    Exists because the failure mode it prevents is expensive and unhelpful: Vina
+    reports a missing map set as ``Cannot find affinity maps with <path>``, once
+    per ligand, so a screen pointed at the wrong directory fails tens of thousands
+    of times and explains itself none of them.
+
+    The mistake it catches is a natural one -- pointing at the directory holding
+    the *receptor*, which is where maps intuitively ought to live but do not until
+    ``drydock maps`` has been run.
+
+    Returns:
+        ``(ok, message)``. The message says what to do when not ok.
+    """
+    if not maps_dir:
+        return False, "no maps directory given; the ad4 engine needs one"
+
+    path = Path(maps_dir)
+    if not path.is_dir():
+        return False, f"{path} is not a directory"
+
+    field = path / f"{MAP_PREFIX}.maps.fld"
+    maps = sorted(path.glob(f"{MAP_PREFIX}.*.map"))
+
+    if field.exists() and maps:
+        return True, f"{len(maps)} maps"
+
+    receptors = sorted(path.glob("*.pdbqt"))
+    if receptors and not maps:
+        names = ", ".join(p.name for p in receptors[:3])
+        return False, (
+            f"{path} contains receptor files ({names}) but no AutoGrid maps. "
+            "Maps are computed separately from the receptor -- run 'drydock maps' "
+            "(or use Generate maps in the GUI) and point this at the directory it "
+            "writes."
+        )
+
+    if maps and not field.exists():
+        return False, (
+            f"{path} has {len(maps)} map files but no {field.name}. The map set is "
+            "incomplete; regenerate it."
+        )
+
+    return False, (
+        f"{path} contains no AutoGrid maps. Run 'drydock maps' first, or choose "
+        "the vina or vinardo engine, which compute their own maps."
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ZincResult:
     """Outcome of adding zinc pseudo-atoms to a receptor."""
