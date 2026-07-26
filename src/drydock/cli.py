@@ -418,6 +418,121 @@ def report_cmd(run_dir: Path, manifest: Path | None, flat: bool, top: int) -> No
         )
 
 
+@main.command("add-zinc-pseudo")
+@click.argument("receptor", type=click.Path(exists=True, path_type=Path))
+@click.option("-o", "--out", type=click.Path(path_type=Path), default=None, help="Output PDBQT.")
+def add_zinc_pseudo(receptor: Path, out: Path | None) -> None:
+    """Add tetrahedral zinc pseudo-atoms for AutoDock4Zn.
+
+    This is the one receptor modification Drydock performs, and it is opt-in
+    because the AutoDock4Zn scoring path cannot run without it.
+
+    AutoDock represents zinc coordination through pseudo-atoms (type TZ) placed
+    at the *vacant* tetrahedral positions around each zinc. A zinc already
+    saturated by the protein gets none, correctly -- there is no site there for a
+    ligand to reach.
+    """
+    from drydock.core.zinc import ZincError, add_zinc_pseudo_atoms
+
+    try:
+        result = add_zinc_pseudo_atoms(receptor, out)
+    except ZincError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"zinc atoms found:     {result.n_zinc}")
+    click.echo(f"pseudo-atoms placed:  {result.n_pseudo_atoms}")
+    click.echo(f"wrote:                {result.receptor_tz}")
+    if result.n_pseudo_atoms < result.n_zinc:
+        click.echo(
+            "note: fewer pseudo-atoms than zincs, which is expected when a zinc is "
+            "fully coordinated by the protein (a structural rather than catalytic "
+            "site) and so offers a ligand nowhere to bind."
+        )
+
+
+@main.command("maps")
+@click.option(
+    "-r", "--receptor", required=True, type=click.Path(exists=True, path_type=Path),
+    help="Receptor PDBQT, including TZ atoms if using AutoDock4Zn.",
+)
+@click.option(
+    "-o", "--out", required=True, type=click.Path(path_type=Path),
+    help="Directory to write maps into.",
+)
+@click.option("--residues", default=None, help="Residues defining the box.")
+@click.option("--chain", default=None, help="Restrict residue selection to one chain.")
+@click.option("--pad", default=5.0, show_default=True, help="Box padding in Angstroms.")
+@click.option("--center", default=None, help="Explicit box centre as x,y,z.")
+@click.option("--size", default=None, help="Explicit box size as x,y,z.")
+@click.option(
+    "--parameters", type=click.Path(exists=True, path_type=Path), default=None,
+    help="AD4 parameter file. Defaults to the bundled AD4Zn.dat.",
+)
+def maps_cmd(
+    receptor: Path,
+    out: Path,
+    residues: str | None,
+    chain: str | None,
+    pad: float,
+    center: str | None,
+    size: str | None,
+    parameters: Path | None,
+) -> None:
+    """Compute AutoGrid maps for the ad4 engine.
+
+    Maps depend on the receptor and the box, not on any individual ligand, so
+    they are computed once and reused for the whole screen.
+    """
+    import shutil
+
+    from drydock.core.box import Box
+    from drydock.core.receptor import box_from_residues, inspect
+    from drydock.core.zinc import ZincError, run_autogrid, write_gpf
+
+    if center and size:
+        box = Box(
+            tuple(float(v) for v in center.split(",")),
+            tuple(float(v) for v in size.split(",")),
+        )
+    elif residues:
+        numbers = [int(v) for v in residues.replace(" ", "").split(",") if v]
+        try:
+            box, _ = box_from_residues(receptor, numbers, padding=pad, chain=chain)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    else:
+        raise click.ClickException("give either --residues or both --center and --size")
+
+    report = inspect(receptor)
+    if report.metals and not report.has_zinc_pseudo_atoms:
+        click.secho(
+            "note: this receptor has metals but no TZ pseudo-atoms. For zinc "
+            "metalloproteins run 'drydock add-zinc-pseudo' first, or the maps will "
+            "not carry AutoDock4Zn's coordination geometry.",
+            fg="yellow",
+        )
+
+    out.mkdir(parents=True, exist_ok=True)
+    local_receptor = out / receptor.name
+    if receptor.resolve() != local_receptor.resolve():
+        shutil.copy(receptor, local_receptor)
+
+    click.echo(f"box: {box}")
+    gpf = write_gpf(local_receptor, box, out / "receptor.gpf", parameter_file=parameters)
+    click.echo(f"grid parameter file: {gpf}")
+
+    click.echo("running autogrid4…")
+    try:
+        maps_dir = run_autogrid(gpf, out)
+    except ZincError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    written = sorted(maps_dir.glob("*.map"))
+    total_mb = sum(m.stat().st_size for m in written) / 1e6
+    click.echo(f"wrote {len(written)} maps ({total_mb:.0f} MB) in {maps_dir}")
+    click.echo(f"screen with: drydock screen --engine ad4 --maps {maps_dir} …")
+
+
 @main.command("check-receptor")
 @click.argument("receptor", type=click.Path(exists=True, path_type=Path))
 def check_receptor(receptor: Path) -> None:

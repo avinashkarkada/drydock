@@ -23,10 +23,38 @@ work happened to be distributed across workers.
 from __future__ import annotations
 
 import contextlib
-import io
+import os
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 from drydock.engines.base import DockConfig, DockOutcome, EngineError, parse_vina_poses
+
+
+@contextlib.contextmanager
+def _silenced_stdout() -> Iterator[None]:
+    """Silence writes to file descriptor 1, including from C++.
+
+    ``contextlib.redirect_stdout`` is not sufficient here. It rebinds Python's
+    ``sys.stdout`` object, but Vina is a C++ extension that writes to the
+    descriptor directly, so its output sails past any Python-level redirection.
+
+    Left unhandled this is not merely untidy. Twelve worker processes writing to
+    a descriptor they inherited from the parent share one file offset, and their
+    interleaved writes punch holes that the kernel fills with NUL bytes: a single
+    benchmark produced a 32 MB log of which 3.2 million bytes were NUL. Replacing
+    the descriptor itself is the only redirection the extension cannot bypass.
+    """
+    sys.stdout.flush()
+    saved = os.dup(1)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull, 1)
+        yield
+    finally:
+        os.dup2(saved, 1)
+        os.close(devnull)
+        os.close(saved)
 
 
 class VinaEngine:
@@ -58,22 +86,25 @@ class VinaEngine:
         )
 
         try:
-            if config.scoring_function == "ad4":
-                # AD4 scoring runs against pre-computed AutoGrid maps rather than
-                # maps Vina derives itself, because the AD4 force field -- and
-                # AutoDock4Zn's zinc terms in particular -- are defined by the
-                # grid parameter file, not by anything Vina can infer.
-                if not config.maps_dir:
-                    raise EngineError(
-                        "the ad4 engine needs AutoGrid maps; run 'drydock maps' first"
+            # Receptor loading and map computation are also chatty at the C++
+            # level, and happen once per worker.
+            with _silenced_stdout():
+                if config.scoring_function == "ad4":
+                    # AD4 scoring runs against pre-computed AutoGrid maps rather
+                    # than maps Vina derives itself, because the AD4 force field
+                    # -- and AutoDock4Zn's zinc terms in particular -- are defined
+                    # by the grid parameter file, not by anything Vina can infer.
+                    if not config.maps_dir:
+                        raise EngineError(
+                            "the ad4 engine needs AutoGrid maps; run 'drydock maps' first"
+                        )
+                    vina.load_maps(str(Path(config.maps_dir) / "receptor"))
+                else:
+                    vina.set_receptor(config.receptor)
+                    vina.compute_vina_maps(
+                        center=list(config.box.center),
+                        box_size=list(config.box.size),
                     )
-                vina.load_maps(str(Path(config.maps_dir) / "receptor"))
-            else:
-                vina.set_receptor(config.receptor)
-                vina.compute_vina_maps(
-                    center=list(config.box.center),
-                    box_size=list(config.box.size),
-                )
         except EngineError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -93,9 +124,7 @@ class VinaEngine:
             raise EngineError(f"could not load ligand: {_brief(exc)}", ligand_id) from exc
 
         try:
-            # Vina writes progress to stdout even at verbosity 0 in some builds;
-            # workers must not interleave output with the parent's progress bar.
-            with contextlib.redirect_stdout(io.StringIO()):
+            with _silenced_stdout():
                 vina.dock(
                     exhaustiveness=config.exhaustiveness,
                     n_poses=config.n_modes,

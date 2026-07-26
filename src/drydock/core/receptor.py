@@ -30,6 +30,48 @@ METALS = frozenset({"ZN", "MG", "MN", "FE", "CA", "CU", "NI", "CO", "CD", "K", "
 # Tetrahedral zinc pseudo-atom, added for the AutoDock4Zn force field.
 ZINC_PSEUDO = "TZ"
 
+# Canonical AutoDock atom types, keyed by their upper-case form.
+#
+# AutoDock types are case-sensitive and two-letter elements use element casing:
+# "Zn", not "ZN". Vina rejects the wrong case outright -- and reports it as a C++
+# overload-resolution error that reads like a caller bug rather than a fixable
+# problem with the file. Tools disagree about this often enough to be worth
+# repairing rather than merely diagnosing; AMDock's zinc_pseudo.py, for one,
+# upper-cases every metal it passes through.
+CANONICAL_ATOM_TYPES: dict[str, str] = {
+    t.upper(): t
+    for t in (
+        # Elements whose AutoDock type is mixed case.
+        "Mg", "Mn", "Fe", "Zn", "Ca", "Cu", "Ni", "Co", "Cd", "Hg", "Na", "Ki",
+        "Cl", "Br", "Si", "Se",
+        # Single-letter and all-caps types, listed so they survive normalisation.
+        "H", "HD", "HS", "C", "A", "N", "NA", "NS", "OA", "OS", "F", "P", "S",
+        "SA", "I", "TZ", "G", "GA", "J", "Q",
+    )
+}
+
+
+def normalize_atom_types(pdbqt_text: str) -> tuple[str, int]:
+    """Repair atom-type casing in a PDBQT.
+
+    Returns the corrected text and how many atoms were changed. Only the type
+    field (columns 78-79) is touched; coordinates, charges and element names are
+    left exactly as they were.
+    """
+    lines = pdbqt_text.splitlines(keepends=True)
+    changed = 0
+
+    for i, line in enumerate(lines):
+        if not line.startswith(("ATOM", "HETATM")) or len(line) < 79:
+            continue
+        current = line[77:79].strip()
+        canonical = CANONICAL_ATOM_TYPES.get(current.upper())
+        if canonical and canonical != current:
+            lines[i] = f"{line[:77]}{canonical:<2}{line[79:]}"
+            changed += 1
+
+    return "".join(lines), changed
+
 
 @dataclass(frozen=True, slots=True)
 class ReceptorAtom:

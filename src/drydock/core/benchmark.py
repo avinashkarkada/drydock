@@ -34,9 +34,19 @@ from typing import Any
 from drydock.core.screen import LigandJob, _dock_one, iter_ligands
 from drydock.engines.base import DockConfig
 
-# Sample size. Enough for a median and a rough tail, small enough that measuring
-# is cheap relative to the run being planned.
-DEFAULT_SAMPLE = 25
+# Sample size.
+#
+# Raised from 25 after a measured miss: per-ligand cost has a long right tail
+# (in a marine natural-product library, a 10x spread between median and worst),
+# and total runtime is a sum, so the tail is exactly what the projection depends
+# on. A 20-ligand sample of one library gave a mean of 82 s where the full
+# 100-compound run gave 122 s -- a 33% underestimate, entirely because the small
+# sample missed the slow compounds.
+#
+# 50 is a compromise: still minutes rather than hours to measure, but wide enough
+# that a projection is not dominated by whether one floppy macrocycle happened to
+# be drawn.
+DEFAULT_SAMPLE = 50
 
 
 @dataclass(slots=True)
@@ -63,6 +73,17 @@ class BenchmarkResult:
     @property
     def max_s(self) -> float:
         return max(self.times, default=0.0)
+
+    @property
+    def tail_ratio(self) -> float:
+        """Mean divided by median: how much the slow tail costs.
+
+        1.0 means a symmetric distribution. Above roughly 1.3 the projection is
+        being driven by a minority of slow ligands, and a small sample may well
+        have missed them -- so the projection should be read as a lower bound.
+        """
+        median = self.median_s
+        return (self.mean_s / median) if median else 1.0
 
     def projected_hours(self, n_ligands: int, n_workers: int) -> float:
         """Wall-clock hours to screen a library of this size.
@@ -182,4 +203,12 @@ def format_comparison(
         f"projection assumes {n_ligands:,} ligands across {n_workers} workers, "
         "scaled from the mean"
     )
+
+    heavy = [r for r in results if r.tail_ratio > 1.3]
+    if heavy:
+        worst = max(r.tail_ratio for r in heavy)
+        lines.append(
+            f"note: cost is skewed by slow ligands (mean/median up to {worst:.1f}x). "
+            "A sample can miss those, so read these projections as lower bounds."
+        )
     return "\n".join(lines)

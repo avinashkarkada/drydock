@@ -42,6 +42,9 @@ packages = ["src/drydock"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Vendored third-party code, kept byte-identical to upstream so its provenance
+# stays verifiable. Reformatting it would make that impossible to check.
+extend-exclude = ["src/drydock/data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
