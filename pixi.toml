@@ -8,6 +8,16 @@ platforms = ["linux-64"]
 license = "GPL-3.0-or-later"
 readme = "README.md"
 
+[activation.env]
+# Python adds ~/.local/lib/pythonX.Y/site-packages to sys.path by default, which
+# silently merges whatever the user has pip-installed system-wide into this
+# otherwise pinned environment. That is the single most common source of "works
+# on my machine": the lockfile is exact, and the interpreter then imports
+# something that is not in it. Refuse the user site directory outright.
+PYTHONNOUSERSITE = "1"
+# Ignore PYTHONPATH inherited from the calling shell, for the same reason.
+PYTHONPATH = ""
+
 [dependencies]
 python = "3.12.*"
 
