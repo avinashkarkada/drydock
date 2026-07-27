@@ -47,6 +47,15 @@ from typing import Any, Literal
 SCHEMA_VERSION = 1
 
 LigandStatus = Literal["ok", "failed", "skipped"]
+
+# Why a ligand failed.
+#
+# "ligand"  -- this molecule could not be docked. Another one might be fine, and
+#              retrying this one will fail again, so it counts as done.
+# "setup"   -- the run could not be set up: missing maps, an unreadable receptor.
+#              Nothing is wrong with the ligand, every ligand will fail the same
+#              way, and fixing the cause should make them all retryable.
+FailureKind = Literal["ligand", "setup"]
 RunState = Literal["pending", "running", "finished", "failed", "cancelled"]
 
 
@@ -80,9 +89,19 @@ class PoseMode:
 class LigandResult:
     """The outcome of docking one ligand: one journal line.
 
-    A failed ligand is recorded just as deliberately as a successful one. Both
-    count as "done" for resume purposes, so a compound that reliably crashes the
-    engine does not get retried forever on every restart.
+    A failed ligand is recorded just as deliberately as a successful one, and
+    normally counts as "done" for resume purposes -- a compound that reliably
+    crashes the engine should not be retried on every restart.
+
+    ``error_kind`` is the exception to that, and it exists because of a real
+    failure. A screen was started before its AutoGrid maps had been generated;
+    all 100 ligands failed with "cannot find affinity maps", and were journalled.
+    The maps were then created, the screen restarted -- and resume skipped every
+    ligand, because each was recorded as done. The run could never succeed, and
+    the interface went on showing the original error.
+
+    Nothing about those ligands failed. The *setup* failed. So failures are
+    classified, and setup failures are retried once whatever was wrong is fixed.
     """
 
     ligand_id: str
@@ -91,7 +110,13 @@ class LigandResult:
     elapsed_s: float = 0.0
     modes: tuple[PoseMode, ...] = ()
     error: str | None = None
+    error_kind: FailureKind | None = None
     timestamp: float = field(default_factory=time.time)
+
+    @property
+    def is_retryable(self) -> bool:
+        """True if this failure was the run's fault rather than the ligand's."""
+        return self.error_kind == "setup"
 
     @property
     def best_affinity(self) -> float | None:
@@ -112,6 +137,8 @@ class LigandResult:
             payload["modes"] = [m.to_dict() for m in self.modes]
         if self.error is not None:
             payload["error"] = self.error
+        if self.error_kind is not None:
+            payload["error_kind"] = self.error_kind
         return json.dumps(payload, separators=(",", ":"))
 
     @classmethod
@@ -123,6 +150,7 @@ class LigandResult:
             elapsed_s=float(d.get("elapsed_s", 0.0)),
             modes=tuple(PoseMode.from_dict(m) for m in d.get("modes", ())),
             error=d.get("error"),
+            error_kind=d.get("error_kind"),
             timestamp=float(d.get("timestamp", 0.0)),
         )
 
@@ -331,9 +359,27 @@ class RunDir:
     def completed_ids(self) -> set[str]:
         """Ligand IDs the run should not attempt again.
 
-        Includes failures deliberately -- see :class:`LigandResult`.
+        Includes ligand-level failures deliberately, and excludes setup failures
+        deliberately -- see :class:`LigandResult`. A ligand that failed because
+        the run had no grid maps has not been tested, and must not be skipped
+        once the maps exist.
         """
-        return {r.ligand_id for r in self.read_journal()}
+        done: set[str] = set()
+        retryable: set[str] = set()
+        for record in self.read_journal():
+            if record.is_retryable:
+                retryable.add(record.ligand_id)
+            else:
+                done.add(record.ligand_id)
+        # A later real result supersedes an earlier setup failure.
+        return done
+
+    def retryable_ids(self) -> set[str]:
+        """Ligand IDs whose only failures were the run's fault, not theirs."""
+        attempted: dict[str, bool] = {}
+        for record in self.read_journal():
+            attempted[record.ligand_id] = record.is_retryable
+        return {ligand_id for ligand_id, retry in attempted.items() if retry}
 
     # -- status ------------------------------------------------------------
 

@@ -257,3 +257,57 @@ class TestResumeFlow:
 
         for line in run.journal_file.read_text(encoding="utf-8").splitlines():
             assert json.loads(line)["ligand_id"]
+
+
+class TestFailureClassification:
+    """Setup failures must not be treated as tested ligands.
+
+    From a real run: a screen started before its grid maps existed journalled 100
+    setup failures. The maps were then created and the screen restarted -- and
+    resume skipped every ligand, because each was recorded as done. The run could
+    never succeed and the interface kept showing the original error.
+    """
+
+    def _failure(self, ligand_id: str, kind: str) -> LigandResult:
+        return LigandResult(
+            ligand_id=ligand_id, status="failed", error="boom", error_kind=kind
+        )
+
+    def test_setup_failures_are_retryable(self):
+        assert self._failure("A", "setup").is_retryable
+
+    def test_ligand_failures_are_not(self):
+        assert not self._failure("A", "ligand").is_retryable
+
+    def test_successes_are_not_retryable(self):
+        assert not _result("A").is_retryable
+
+    def test_error_kind_survives_the_journal(self, run):
+        run.append(self._failure("A", "setup"))
+        assert list(run.read_journal())[0].error_kind == "setup"
+
+    def test_setup_failures_are_not_skipped_on_resume(self, run):
+        for i in range(5):
+            run.append(self._failure(f"LIG{i}", "setup"))
+
+        assert run.completed_ids() == set(), "a ligand never tested is not done"
+        assert len(run.retryable_ids()) == 5
+
+    def test_ligand_failures_are_still_skipped(self, run):
+        """The original behaviour must survive: a broken compound is done."""
+        run.append(self._failure("BAD", "ligand"))
+        assert run.completed_ids() == {"BAD"}
+        assert run.retryable_ids() == set()
+
+    def test_a_later_success_supersedes_a_setup_failure(self, run):
+        """Exactly the reported sequence: fail with no maps, then succeed."""
+        run.append(self._failure("LIG", "setup"))
+        run.append(_result("LIG"))
+
+        assert run.completed_ids() == {"LIG"}
+        assert run.retryable_ids() == set()
+
+    def test_records_without_error_kind_are_treated_as_done(self, run):
+        """Journals written before classification existed must still be read."""
+        run.append(LigandResult(ligand_id="OLD", status="failed", error="boom"))
+        assert run.completed_ids() == {"OLD"}

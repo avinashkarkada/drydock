@@ -36,6 +36,14 @@ from pathlib import Path
 from drydock.core.rundir import LigandResult, RunDir, RunStatus
 from drydock.engines.base import DockConfig, EngineError
 
+
+class SetupFailure(RuntimeError):
+    """Raised when a run cannot be set up, rather than one ligand failing.
+
+    Distinct from EngineError so the runner can stop the whole screen instead of
+    recording the same failure once per compound.
+    """
+
 # Poses are kept only for ligands that score well enough to be worth looking at.
 # Exporting all of them for a 47,000-compound screen would write gigabytes that
 # nobody opens, and the run directory should stay small enough to copy.
@@ -57,6 +65,14 @@ CHUNK_SIZE = 1
 # How often the cached status summary is rewritten. The journal is always
 # current; this only paces the convenience file the GUI polls.
 STATUS_EVERY = 10
+
+# Consecutive setup failures before a run gives up.
+#
+# A setup failure -- missing grid maps, an unreadable receptor -- affects every
+# ligand equally, so continuing means failing identically tens of thousands of
+# times and burying the cause. Stopping after a handful reports it once, while
+# still tolerating a worker that fails to start for an unrelated transient reason.
+SETUP_FAILURE_LIMIT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +122,7 @@ def _dock_one(args: tuple[LigandJob, DockConfig]) -> tuple[LigandResult, str | N
                 seed=config.seed,
                 elapsed_s=time.perf_counter() - started,
                 error=str(exc)[:300],
+                error_kind="setup" if exc.setup else "ligand",
             ),
             None,
         )
@@ -117,6 +134,7 @@ def _dock_one(args: tuple[LigandJob, DockConfig]) -> tuple[LigandResult, str | N
                 seed=config.seed,
                 elapsed_s=time.perf_counter() - started,
                 error=f"{exc.__class__.__name__}: {str(exc)[:250]}",
+                error_kind="ligand",
             ),
             None,
         )
@@ -240,6 +258,7 @@ def run_screen(
 
     try:
         since_status = 0
+        consecutive_setup_failures = 0
         for result, poses in results:
             # The parent is the journal's only writer, so there is no locking and
             # no chance of interleaved records.
@@ -247,8 +266,18 @@ def run_screen(
 
             if result.status == "ok":
                 status.completed += 1
+                consecutive_setup_failures = 0
             else:
                 status.failed += 1
+                if result.is_retryable:
+                    consecutive_setup_failures += 1
+                    if consecutive_setup_failures >= SETUP_FAILURE_LIMIT:
+                        status.state = "failed"
+                        status.message = result.error
+                        run.write_status(status)
+                        raise SetupFailure(result.error or "run could not be set up")
+                else:
+                    consecutive_setup_failures = 0
 
             if poses:
                 (run.poses_dir / f"{result.ligand_id}.pdbqt").write_text(
@@ -261,6 +290,8 @@ def run_screen(
                 run.write_status(status)
                 if progress:
                     progress(status)
+    except SetupFailure:
+        raise
     except KeyboardInterrupt:
         status.state = "cancelled"
         status.message = "interrupted by user"

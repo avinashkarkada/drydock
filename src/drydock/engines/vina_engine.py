@@ -102,7 +102,7 @@ class VinaEngine:
 
                     ok, detail = maps_status(config.maps_dir)
                     if not ok:
-                        raise EngineError(detail)
+                        raise EngineError(detail, setup=True)
                     vina.load_maps(str(Path(config.maps_dir) / MAP_PREFIX))
                 else:
                     vina.set_receptor(config.receptor)
@@ -113,7 +113,7 @@ class VinaEngine:
         except EngineError:
             raise
         except Exception as exc:  # noqa: BLE001
-            raise EngineError(_explain_setup_failure(exc, config)) from exc
+            raise EngineError(_explain_setup_failure(exc, config), setup=True) from exc
 
         self._vina = vina
         return vina

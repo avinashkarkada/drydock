@@ -34,9 +34,18 @@ class EngineError(RuntimeError):
     failure against a name rather than an index.
     """
 
-    def __init__(self, message: str, ligand_id: str | None = None) -> None:
+    def __init__(
+        self, message: str, ligand_id: str | None = None, setup: bool = False
+    ) -> None:
         super().__init__(message)
         self.ligand_id = ligand_id
+        self.setup = setup
+        """True when the run could not be set up at all.
+
+        Distinguished from a ligand that cannot be docked because the two need
+        opposite handling on resume: a bad ligand is done, a bad setup means
+        nothing has been tested yet.
+        """
 
 
 @dataclass(frozen=True, slots=True)
