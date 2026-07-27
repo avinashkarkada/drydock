@@ -22,10 +22,11 @@ WORKDIR /app
 COPY pixi.toml pixi.lock pyproject.toml README.md ./
 COPY src/ ./src/
 
-# --frozen refuses to re-solve. If the lockfile cannot satisfy the manifest the
-# build fails here rather than producing an image that quietly differs from what
-# developers and CI are running.
-RUN pixi install --frozen --locked -e default
+# --locked aborts if pixi.lock has drifted from pixi.toml, so the build fails
+# here rather than producing an image that quietly differs from what developers
+# and CI are running. (It cannot be combined with --frozen, which only declines
+# to update the lockfile rather than checking it.)
+RUN pixi install --locked -e default
 
 # `pixi shell-hook` bakes the activation into a plain script, so the runtime
 # stage needs no pixi and no shell initialisation.
