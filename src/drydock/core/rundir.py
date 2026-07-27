@@ -1,9 +1,9 @@
 """The run directory: the single source of truth for a screening run.
 
-Everything a screen produces lands in one directory, and everything that reads a
-screen -- the GUI, ``drydock report``, a resumed run -- reads it from there.
-Nothing of consequence lives in memory, which is what lets the screening process
-be detached from the process watching it.
+Everything a screen produces lands in one directory. Everything that reads a
+screen (the GUI, ``drydock report``, a resumed run) reads it from there. Nothing
+important lives in memory, so the screening process can be detached from
+whatever is watching it.
 
 Layout::
 
@@ -20,7 +20,7 @@ Layout::
 Two properties matter and drive the design.
 
 **Crash safety.** ``journal.jsonl`` is append-only and written by exactly one
-process -- the parent, which collects finished work from its pool. Workers never
+process, the parent, which collects finished work from its pool. Workers never
 touch it, so there is no locking and no interleaving. A run killed mid-write
 leaves at most one truncated final line, which :func:`read_journal` discards. A
 resumed run loses at most the ligand that was in flight.
@@ -50,9 +50,9 @@ LigandStatus = Literal["ok", "failed", "skipped"]
 
 # Why a ligand failed.
 #
-# "ligand"  -- this molecule could not be docked. Another one might be fine, and
+# "ligand", this molecule could not be docked. Another one might be fine, and
 #              retrying this one will fail again, so it counts as done.
-# "setup"   -- the run could not be set up: missing maps, an unreadable receptor.
+# "setup", the run could not be set up: missing maps, an unreadable receptor.
 #              Nothing is wrong with the ligand, every ligand will fail the same
 #              way, and fixing the cause should make them all retryable.
 FailureKind = Literal["ligand", "setup"]
@@ -89,14 +89,14 @@ class PoseMode:
 class LigandResult:
     """The outcome of docking one ligand: one journal line.
 
-    A failed ligand is recorded just as deliberately as a successful one, and
-    normally counts as "done" for resume purposes -- a compound that reliably
+    A failed ligand is recorded as carefully as a successful one, and normally
+    counts as "done" for resume purposes, a compound that reliably
     crashes the engine should not be retried on every restart.
 
     ``error_kind`` is the exception to that, and it exists because of a real
     failure. A screen was started before its AutoGrid maps had been generated;
     all 100 ligands failed with "cannot find affinity maps", and were journalled.
-    The maps were then created, the screen restarted -- and resume skipped every
+    The maps were then created, the screen restarted. And resume skipped every
     ligand, because each was recorded as done. The run could never succeed, and
     the interface went on showing the original error.
 
@@ -218,8 +218,7 @@ def _atomic_write(path: Path, text: str) -> None:
 
     Written to a sibling temp file, fsync'd, then renamed. ``os.replace`` is
     atomic within a filesystem, so a concurrent reader sees either the old file
-    or the new one -- which is what makes status.json safe to poll without a
-    lock.
+    or the new one, so status.json is safe to poll without a lock.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
@@ -306,7 +305,7 @@ class RunDir:
     def read_journal(self) -> Iterator[LigandResult]:
         """Yield every complete record.
 
-        A truncated final line -- the signature of a killed writer -- is skipped
+        A truncated final line, the signature of a killed writer, is skipped
         rather than raising, because the run it belongs to is by definition one
         we are trying to recover.
         """
@@ -359,8 +358,8 @@ class RunDir:
     def completed_ids(self) -> set[str]:
         """Ligand IDs the run should not attempt again.
 
-        Includes ligand-level failures deliberately, and excludes setup failures
-        deliberately -- see :class:`LigandResult`. A ligand that failed because
+        Ligand-level failures are included and setup failures are not. See
+        :class:`LigandResult`. A ligand that failed because
         the run had no grid maps has not been tested, and must not be skipped
         once the maps exist.
         """
@@ -390,9 +389,9 @@ class RunDir:
     def read_status(self) -> RunStatus | None:
         """Read the cached status, or None if absent or unreadable.
 
-        Returning None on a malformed file is deliberate: status.json is a cache,
-        and a watcher should fall back to rebuilding from the journal rather than
-        surfacing an error for something that is not authoritative.
+        A malformed file returns None rather than raising. status.json is only
+        a cache, so a watcher should fall back to rebuilding from the journal
+        instead of reporting an error about something non-authoritative.
         """
         if not self.status_file.exists():
             return None

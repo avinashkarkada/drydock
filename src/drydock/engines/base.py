@@ -6,7 +6,7 @@ lives behind this interface, so the runner does not know which is in use.
 
 Engines are constructed inside worker processes and reused across ligands. That
 reuse is not an optimisation detail but the difference between a screen taking
-hours and taking days -- see :class:`~drydock.engines.vina_engine.VinaEngine`.
+hours and taking days. See :class:`~drydock.engines.vina_engine.VinaEngine`.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class DockConfig:
     """Threads per docking job.
 
     Deliberately 1. Vina is not reproducible across threads even with a fixed
-    seed -- the search is parallel and thread scheduling perturbs which minima
+    seed, the search is parallel and thread scheduling perturbs which minima
     are found. Reproducibility therefore requires single-threaded jobs, with
     parallelism across ligands instead. That is also the faster arrangement for
     a library screen, so nothing is given up.
@@ -143,7 +143,7 @@ def parse_vina_poses(pdbqt: str) -> tuple[PoseMode, ...]:
 
     The RMSD columns come from here rather than from ``Vina.energies()``, which
     reports only energy terms. Vina writes one ``REMARK VINA RESULT`` line per
-    model, carrying affinity and the two RMSDs relative to the best mode -- the
+    model, carrying affinity and the two RMSDs relative to the best mode, the
     same three numbers AutoDock Vina prints to the terminal and that PaDEL-ADV
     recorded.
     """

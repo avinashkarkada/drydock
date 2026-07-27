@@ -1,9 +1,9 @@
 """Recording what produced a result.
 
 A screen produces a CSV of numbers. Six months later, or in review, the question
-is what produced them -- which receptor, which box, which engine, which version of
-Vina, which seed. Reconstructing that from memory is unreliable and from a shell
-history is worse.
+is what produced them: which receptor, which box, which engine, which version
+of Vina, which seed. Reconstructing that from memory is unreliable, and from a
+shell history worse.
 
 So every run writes ``provenance.json``, and it records enough to answer that
 question without reference to anything outside the run directory.
@@ -65,10 +65,10 @@ def directory_digest(path: str | Path, pattern: str = "*.pdbqt") -> dict[str, An
     """Summarise a directory of inputs.
 
     Hashing every ligand in a 47,000-file directory would take longer than some
-    screens, so this records the file count, total size, and a hash over the
-    sorted (name, size) pairs. That detects files added, removed, renamed or
-    resized -- which covers the ways a prepared library actually changes -- while
-    staying instant.
+    screens, so this records the file count, total size and a hash over the
+    sorted (name, size) pairs. That catches files being added, removed, renamed
+    or resized, which covers how a prepared library actually changes, and stays
+    instant.
     """
     path = Path(path)
     if not path.is_dir():

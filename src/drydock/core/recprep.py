@@ -1,9 +1,9 @@
 """Receptor preparation: structure in, docking-ready PDBQT out.
 
-Originally out of scope. The reason was practical rather than principled --
-receptor preparation meant MGLTools, which is Python 2, unmaintained, and a
-dependency no reproducible environment should carry. Asking users to prepare
-receptors elsewhere was better than pinning a dead toolchain.
+This was originally out of scope, for a practical reason rather than a
+principled one: receptor preparation meant MGLTools, which is Python 2,
+unmaintained, and not a dependency any reproducible environment should carry.
+Asking users to prepare receptors elsewhere beat pinning a dead toolchain.
 
 Meeko's ``mk_prepare_receptor`` removes that objection: it is already in the
 pinned environment, maintained by the same group as the docking engine, and adds
@@ -125,7 +125,7 @@ def prepare_receptor(
         raise ReceptorPrepError(f"structure not found: {structure}")
 
     # Meeko appends .pdbqt to whatever basename it is given, so a basename that
-    # already carries one produces "receptor.pdbqt.pdbqt" -- and preparation then
+    # already carries one produces "receptor.pdbqt.pdbqt". And preparation then
     # fails looking for the name it expected. Writing the extension is the
     # natural thing for a user to do, so accept it and strip it.
     output_basename = Path(output_basename)
@@ -143,7 +143,7 @@ def prepare_receptor(
     if not executable:
         raise ReceptorPrepError(
             "mk_prepare_receptor.py not found. It ships with Meeko, which is part "
-            "of Drydock's pinned environment -- run through 'pixi run'."
+            "of Drydock's pinned environment, run through 'pixi run'."
         )
 
     command = [
@@ -211,7 +211,7 @@ def _explain_failure(output: str) -> str:
         )
     if "template" in text.lower():
         return (
-            "a residue does not match any known template -- commonly a modified "
+            "a residue does not match any known template, commonly a modified "
             "residue, a ligand left in the file, or a non-standard cofactor. "
             "Delete it with --delete-residues, or supply a template.\n\n"
             + text[-600:]

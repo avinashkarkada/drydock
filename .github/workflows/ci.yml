@@ -1,6 +1,6 @@
 name: CI
 
-# The point of this workflow is not that the tests pass -- they pass locally too.
+# The point of this workflow is not that the tests pass, they pass locally too.
 # It is that they pass on a machine that is not the author's, installed from
 # nothing but the lockfile. That is the only check that actually defends against
 # "works on my machine", and it has to run on every commit to be worth anything.

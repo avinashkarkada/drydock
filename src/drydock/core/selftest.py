@@ -3,7 +3,7 @@
 The point of a self-test in a scientific tool is narrower than "do the tests
 pass". Unit tests run against mocks and fixtures; they confirm the code is
 internally consistent. What they cannot confirm is that *this installation, on
-this machine* produces the same numbers as everywhere else -- which is the claim
+this machine* produces the same numbers as everywhere else, which is the claim
 Drydock actually makes.
 
 So this runs the real pipeline on a small bundled case:
@@ -11,19 +11,19 @@ So this runs the real pipeline on a small bundled case:
     ligands.smi -> prepare -> dock against receptor.pdbqt -> compare affinities
 
 and checks the results against values recorded from a known-good run. A silent
-numerical drift -- a rebuilt Vina, a different BLAS, a subtly different RDKit --
-shows up here as a failed comparison rather than as a paper that will not
+numerical drift from a rebuilt Vina, a different BLAS or a slightly different
+RDKit shows up here as a failed comparison, rather than as a paper that will not
 replicate.
 
 Tolerance
 ---------
 
-Affinities are compared to +/-0.5 kcal/mol. Not because that is a scientifically
-interesting margin, but because it is wide enough to absorb floating-point
-differences between CPU architectures and narrow enough that a genuine change in
-behaviour -- a different scoring function, missing hydrogens, a misplaced box --
-moves results well past it. A drift smaller than that would not change any
-conclusion drawn from a screen.
+Affinities are compared to +/-0.5 kcal/mol. That is not a scientifically
+interesting margin, but it is wide enough to absorb floating-point differences
+between CPU architectures and narrow enough that a real change in behaviour (a
+different scoring function, missing hydrogens, a misplaced box) moves results
+well past it. Anything smaller would not change a conclusion drawn from a
+screen.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ class Check:
 
     def __str__(self) -> str:
         mark = "ok  " if self.passed else "FAIL"
-        return f"  [{mark}] {self.name}{f' -- {self.detail}' if self.detail else ''}"
+        return f"  [{mark}] {self.name}{f', {self.detail}' if self.detail else ''}"
 
 
 @dataclass(slots=True)

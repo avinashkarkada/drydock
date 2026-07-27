@@ -1,14 +1,13 @@
-"""The Receptor panel: prepare a structure, and check what came out.
+"""The Receptor panel: prepare a structure and check what came out.
 
-Preparation is fast enough (seconds) to run in-process rather than detached, so
-this panel is simpler than the other two. What it does not do is report success
-and stop there: the result is inspected and the findings shown, because a
-receptor can prepare cleanly and still be unusable.
+Preparation takes seconds, so this runs in-process rather than detached and the
+panel is simpler than the other two. It does not just report success: the result
+is inspected and the findings shown.
 
-The case that motivated it: a receptor prepared elsewhere reached Drydock with
-zero polar hydrogens. Every hydrogen-bond donor in the protein was missing --
-backbone amides, lysines, tyrosine hydroxyls, all scoring acceptor-only. Nothing
-about the file looked wrong, and no error was raised at any point.
+The reason for that check: a receptor prepared elsewhere arrived with zero polar
+hydrogens, so every hydrogen-bond donor in the protein was missing. Backbone
+amides, lysines and tyrosine hydroxyls all scored acceptor-only. Nothing about
+the file looked wrong and no error was raised anywhere.
 """
 
 from __future__ import annotations
@@ -74,7 +73,7 @@ class ReceptorPanel(QWidget):
 
         self.structure = PathPicker("PDB or mmCIF (.pdb, .cif)")
         # A save target, not an existing file, and a basename rather than a
-        # filename -- so the dialog must allow naming something new, and any
+        # filename. So the dialog must allow naming something new, and any
         # .pdbqt the user supplies is dropped rather than doubled.
         self.out = PathPicker(
             "Output name; .pdbqt is added for you",
@@ -87,8 +86,9 @@ class ReceptorPanel(QWidget):
 
         note = QLabel(
             "Adds hydrogens, assigns AutoDock atom types and partial charges. "
-            "mmCIF is converted automatically. The result is checked before it is "
-            "handed on — a receptor can prepare cleanly and still be unusable."
+            "mmCIF is converted automatically. The result is checked before it "
+            "is handed on, since a receptor can prepare cleanly and still be "
+            "unusable."
         )
         note.setWordWrap(True)
         form.addRow(note)
@@ -102,13 +102,13 @@ class ReceptorPanel(QWidget):
         self.allow_bad.setChecked(True)
 
         self.delete_residues = QLineEdit()
-        self.delete_residues.setPlaceholderText("e.g. A:350,B:15,16 — waters, artefacts")
+        self.delete_residues.setPlaceholderText("waters and artefacts, e.g. A:350,B:15,16")
 
         self.charge_model = QComboBox()
         self.charge_model.addItems(["gasteiger", "espaloma", "zero"])
 
         self.altloc = QLineEdit()
-        self.altloc.setPlaceholderText("e.g. A — only if the structure has alternates")
+        self.altloc.setPlaceholderText("e.g. A (only if the structure has alternates)")
         self.altloc.setMaximumWidth(120)
 
         form.addRow(self.allow_bad)
@@ -117,9 +117,10 @@ class ReceptorPanel(QWidget):
         form.addRow("Alternate location", self.altloc)
 
         note = QLabel(
-            "Crystal structures routinely have disordered side chains, so deleting "
-            "incomplete residues is on by default — refusing a whole structure over "
-            "one unresolved lysine helps nobody. Anything removed is listed below."
+            "Crystal structures often have disordered side chains, so deleting "
+            "incomplete residues is on by default. Refusing a whole structure "
+            "over one unresolved lysine helps nobody. Anything removed is listed "
+            "below."
         )
         note.setWordWrap(True)
         form.addRow(note)
@@ -135,9 +136,10 @@ class ReceptorPanel(QWidget):
         layout.addWidget(self.add_zinc)
 
         note = QLabel(
-            "Pseudo-atoms go only at <i>vacant</i> coordination sites. A zinc already "
-            "saturated by the protein — a structural rather than catalytic site — "
-            "correctly gets none, since there is nowhere for a ligand to bind."
+            "Pseudo-atoms go only at <i>vacant</i> coordination sites. A zinc "
+            "already saturated by the protein (a structural rather than "
+            "catalytic site) gets none, because there is nowhere for a ligand "
+            "to bind."
         )
         note.setWordWrap(True)
         note.setTextFormat(Qt.TextFormat.RichText)
@@ -170,7 +172,7 @@ class ReceptorPanel(QWidget):
         from drydock.core.recprep import ReceptorPrepError, prepare_receptor
 
         self._prepare_button.setEnabled(False)
-        self._note("Preparing…")
+        self._note("Preparing...")
         try:
             result = prepare_receptor(
                 structure,

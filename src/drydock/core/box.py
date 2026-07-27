@@ -5,12 +5,12 @@ few decisions in a screen that can invalidate everything downstream without ever
 producing an error. A box in the wrong place returns plausible-looking affinities
 for poses in the wrong pocket.
 
-Drydock supports two ways to define it, and deliberately no more:
+There are two ways to define it, and no more than that:
 
-**Explicit** -- centre and size in Angstroms, as in a Vina ``config.txt``. Use
+**Explicit**: centre and size in Angstroms, as in a Vina ``config.txt``. Use
 this when you already know the coordinates, typically from a co-crystal ligand.
 
-**From residues** -- name the residues lining the site and let the box be
+**From residues**: name the residues lining the site and let the box be
 computed to enclose them, plus padding. Use this when you know the site
 biochemically rather than numerically.
 
@@ -143,7 +143,7 @@ class Box:
         if self.is_large:
             issues.append(
                 f"box volume {self.volume:.0f} A^3 exceeds {LARGE_BOX_VOLUME:.0f} A^3; "
-                "search quality degrades in large boxes -- consider tightening it "
+                "search quality degrades in large boxes, consider tightening it "
                 "or raising exhaustiveness"
             )
         if any(s < 10 for s in self.size):

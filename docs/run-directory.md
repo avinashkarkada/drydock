@@ -19,7 +19,7 @@ run/
 ## Why it is shaped this way
 
 Screening a large library takes hours to days. Over that window the process will
-be interrupted — a closed laptop lid, an OOM kill, a cluster preemption, an
+be interrupted, a closed laptop lid, an OOM kill, a cluster preemption, an
 impatient `Ctrl-C`. Two decisions follow.
 
 **The journal is the authority, and it is append-only.** Every finished ligand is
@@ -62,14 +62,13 @@ Vina prints, and pass through to `results_all_modes.csv` unchanged.
 Two reader rules, both load-bearing:
 
 - **A truncated final line is discarded, not an error.** That is the signature of
-  a killed writer, and the run it belongs to is precisely the one being
-  recovered.
+  a killed writer, and that run is exactly the one being recovered.
 - **Failures count as done.** A compound that reliably crashes the engine is
   recorded and never retried, so it cannot trap a resumed run in a loop.
 
 ## `status.json`
 
-A cache, never authoritative — it holds only what can be recomputed from the
+A cache, never authoritative, it holds only what can be recomputed from the
 journal. It exists so a watcher polling once a second does not re-parse a
 47,000-line file each time.
 
@@ -102,8 +101,8 @@ while True:
 
 `tail_journal` consumes only whole lines. A record still being written is left
 for the next call rather than parsed half-formed, and the returned offset does
-not advance past it. If the journal shrinks — replaced or deleted underneath the
-watcher — it restarts from the top rather than reading from a now-meaningless
+not advance past it. If the journal shrinks, replaced or deleted underneath the
+watcher, it restarts from the top rather than reading from a now-meaningless
 position.
 
 ## Resuming

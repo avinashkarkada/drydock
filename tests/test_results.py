@@ -1,8 +1,8 @@
 """Tests for results assembly.
 
 The behaviour that matters most here is stereoisomer grouping. A library that
-enumerates every stereoisomer under one identifier -- CMNPD gives CMNPD22318 64
-of them -- will otherwise fill a top-100 hit list with variants of a handful of
+enumerates every stereoisomer under one identifier, CMNPD gives CMNPD22318 64
+of them, will otherwise fill a top-100 hit list with variants of a handful of
 compounds, which looks like a strong result and is not one.
 """
 

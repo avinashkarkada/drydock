@@ -7,7 +7,7 @@ ordinary watcher.
 
 The consequence is the property the whole architecture exists for: closing this
 window does not stop the run, and a run that dies does not take the window with
-it. The GUI has no privileged relationship with the work -- it is simply the first
+it. The GUI has no privileged relationship with the work, it is simply the first
 reader of a run directory that anything else could equally read.
 """
 
@@ -71,7 +71,7 @@ class PathPicker(QWidget):
         self.edit.setPlaceholderText(placeholder)
         self.edit.textChanged.connect(self.changed.emit)
 
-        button = QPushButton("Browse…")
+        button = QPushButton("Browse...")
         button.clicked.connect(self._browse)
 
         layout.addWidget(self.edit, stretch=1)
@@ -179,9 +179,9 @@ class SetupPanel(QWidget):
         self.padding.setSuffix(" Å")
 
         self.center = QLineEdit()
-        self.center.setPlaceholderText("x,y,z — leave blank to use residues")
+        self.center.setPlaceholderText("x,y,z, leave blank to use residues")
         self.size = QLineEdit()
-        self.size.setPlaceholderText("x,y,z — leave blank to use residues")
+        self.size.setPlaceholderText("x,y,z, leave blank to use residues")
 
         form.addRow("Active-site residues", self.residues)
         form.addRow("Chain", self.chain)
@@ -202,7 +202,7 @@ class SetupPanel(QWidget):
         self.maps.setEnabled(False)
         self.maps.changed.connect(self._maps_changed)
 
-        self._maps_button = QPushButton("Generate maps…")
+        self._maps_button = QPushButton("Generate maps...")
         self._maps_button.setEnabled(False)
         self._maps_button.clicked.connect(self.generate_maps)
 
@@ -250,7 +250,7 @@ class SetupPanel(QWidget):
             self._note(
                 "The <b>ad4</b> engine scores against pre-computed AutoGrid maps, "
                 "which are separate from the receptor. Choose a directory and press "
-                "<b>Generate maps</b> — or point at one you made earlier with "
+                "<b>Generate maps</b>, or point at one you made earlier with "
                 "<tt>drydock maps</tt>."
             )
         else:
@@ -270,7 +270,7 @@ class SetupPanel(QWidget):
 
         ok, detail = maps_status(path)
         if ok:
-            self._note(f"Maps look usable — {detail}.")
+            self._note(f"Maps look usable, {detail}.")
         else:
             self._note(detail, error=True)
 
@@ -288,7 +288,7 @@ class SetupPanel(QWidget):
         target = self.maps.path()
         if not target:
             self._note(
-                "Choose a directory for the maps first — somewhere separate from "
+                "Choose a directory for the maps first, somewhere separate from "
                 "the receptor, since roughly 50 MB of grid files will be written.",
                 error=True,
             )
@@ -313,7 +313,7 @@ class SetupPanel(QWidget):
         if Path(receptor).resolve() != local.resolve():
             shutil.copy(receptor, local)
 
-        self._note(f"Running autogrid4 for {box}… this takes a few seconds.")
+        self._note(f"Running autogrid4 for {box}... this takes a few seconds.")
         self._maps_button.setEnabled(False)
         try:
             gpf = write_gpf(local, box, out / "receptor.gpf")
@@ -407,7 +407,7 @@ class SetupPanel(QWidget):
         run_dir = self.run_dir.path()
         self._note(
             f"Started. Watching <tt>{run_dir}</tt>.<br>"
-            "This window can be closed at any time -- the run continues, and "
+            "This window can be closed at any time, the run continues, and "
             "reopening it will pick the run back up."
         )
         self.runStarted.emit(run_dir)
@@ -486,7 +486,7 @@ class SetupPanel(QWidget):
         ``start_new_session`` puts the child in its own session, so it does not
         share the GUI's process group and is not signalled when the GUI exits or
         the terminal that launched it closes. Output goes to the run's own log
-        rather than to inherited descriptors -- inheriting stdout is how twelve
+        rather than to inherited descriptors, inheriting stdout is how twelve
         docking workers previously ended up writing over each other.
         """
         run_dir = Path(command[command.index("--run") + 1])
@@ -512,7 +512,7 @@ def _drydock_executable() -> str:
     """Locate the drydock CLI belonging to this interpreter.
 
     Resolved from sys.executable rather than from PATH so the GUI cannot launch a
-    different installation than the one it is running from -- which would quietly
+    different installation than the one it is running from, which would quietly
     produce results from a different set of pinned dependencies.
     """
     candidate = Path(sys.executable).parent / "drydock"

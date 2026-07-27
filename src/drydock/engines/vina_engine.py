@@ -15,9 +15,9 @@ The reason it can be shared is that ``Vina.dock()`` re-seeds from the object's
 seed on every call, so a ligand's result does not depend on what the object
 docked before it. Verified directly: a ligand docked first on a fresh object and
 the same ligand docked after three others on a reused object give identical
-affinities to four decimal places. That is what makes one Vina object per worker
-compatible with reproducible results -- without it, output would depend on how
-work happened to be distributed across workers.
+affinities to four decimal places. One Vina object per worker therefore costs
+nothing in reproducibility. Without that property, output would depend on how
+work happened to be spread across workers.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _silenced_stdout() -> Iterator[None]:
     ``sys.stdout`` object, but Vina is a C++ extension that writes to the
     descriptor directly, so its output sails past any Python-level redirection.
 
-    Left unhandled this is not merely untidy. Twelve worker processes writing to
+    This is not just untidy. Twelve worker processes writing to
     a descriptor they inherited from the parent share one file offset, and their
     interleaved writes punch holes that the kernel fills with NUL bytes: a single
     benchmark produced a 32 MB log of which 3.2 million bytes were NUL. Replacing
@@ -92,7 +92,7 @@ class VinaEngine:
                 if config.scoring_function == "ad4":
                     # AD4 scoring runs against pre-computed AutoGrid maps rather
                     # than maps Vina derives itself, because the AD4 force field
-                    # -- and AutoDock4Zn's zinc terms in particular -- are defined
+                    #. And AutoDock4Zn's zinc terms in particular, are defined
                     # by the grid parameter file, not by anything Vina can infer.
                     #
                     # Checked here rather than left to Vina: its own message is
@@ -154,7 +154,7 @@ def _brief(exc: Exception) -> str:
 def _explain_setup_failure(exc: Exception, config: DockConfig) -> str:
     """Turn a receptor-loading failure into something actionable.
 
-    Vina's most common rejection is an atom type in the wrong case -- ``ZN``
+    Vina's most common rejection is an atom type in the wrong case, ``ZN``
     rather than ``Zn``. The message it produces does say "atom types are
     case-sensitive", but buried in a C++ overload-resolution error that reads as
     a bug in Drydock rather than a fixable problem with the receptor.

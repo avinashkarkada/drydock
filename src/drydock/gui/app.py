@@ -6,16 +6,16 @@ it does not stop a run, and a run crashing does not take the window with it.
 
 The interface follows the order the work is done:
 
-* **1. Receptor** -- prepare a structure, and check what came out.
-* **2. Ligands** -- convert, protonate, optimise and prepare a library.
-* **3. Screen** -- box and engine; starts a detached screen.
-* **4. Results** -- a virtualised table of every ligand scored so far.
+* **1. Receptor**: prepare a structure, and check what came out.
+* **2. Ligands**: convert, protonate, optimise and prepare a library.
+* **3. Screen**: box and engine; starts a detached screen.
+* **4. Results**: a virtualised table of every ligand scored so far.
 
 with a run bar and a bounded activity log framing them.
 
 Starting a screen from Setup spawns ``drydock screen`` in its own session and
 then simply attaches to the run directory it creates. The window holds no handle
-on the work, which is what lets it be closed and reopened freely.
+on the work, so it can be closed and reopened freely.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
         self._run_label = QLabel("<i>no run attached</i>")
         self._run_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
-        open_button = QPushButton("Open run…")
+        open_button = QPushButton("Open run...")
         open_button.clicked.connect(self.choose_run)
         self._detach_button = QPushButton("Detach")
         self._detach_button.clicked.connect(self.detach_run)
@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
         # Uniform row heights let Qt compute geometry without measuring every
-        # row -- required for the view to stay responsive at 47,000 rows.
+        # row, required for the view to stay responsive at 47,000 rows.
         self._table.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self._table.verticalHeader().setDefaultSectionSize(22)
         header = self._table.horizontalHeader()
@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         header.setStretchLastSection(True)
 
         # setSortingEnabled() immediately sorts by the header's current indicator,
-        # which defaults to column 0 descending -- and since column 0 (rank) maps
+        # which defaults to column 0 descending. And since column 0 (rank) maps
         # onto affinity, that silently presents the *worst* binders first. State
         # the intended order explicitly so the header and the model agree: most
         # negative affinity, i.e. the best hits, at the top.
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
 
-        open_action = QAction("&Open run…", self)
+        open_action = QAction("&Open run...", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.choose_run)
         file_menu.addAction(open_action)
@@ -288,7 +288,7 @@ class MainWindow(QMainWindow):
             else:
                 self._log_line(f"{record.ligand_id}  {record.status}: {record.error or ''}")
         if len(records) > 20:
-            self._log_line(f"… and {len(records) - 20} more")
+            self._log_line(f"... and {len(records) - 20} more")
 
     def _on_finished(self, status: RunStatus) -> None:
         self._log_line(f"run {status.state}: {status.completed} ok, {status.failed} failed")

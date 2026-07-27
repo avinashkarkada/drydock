@@ -4,7 +4,7 @@ Both ligand preparation (ETKDG embedding) and docking (Vina's Monte Carlo search
 are stochastic. Reproducing a run therefore means reproducing the seed each
 ligand was given.
 
-Deriving seeds by counting -- ``global_seed + i`` -- would tie them to the order
+Deriving seeds by counting, ``global_seed + i``, would tie them to the order
 work happened to be scheduled in, and a parallel run does not have a stable
 order. Instead each seed is a hash of the global seed and the ligand's
 identifier, so a ligand gets the same seed regardless of how many workers ran,
@@ -27,8 +27,8 @@ def ligand_seed(global_seed: int, ligand_id: str) -> int:
     """Derive a stable seed for one ligand.
 
     The same ``(global_seed, ligand_id)`` pair always yields the same value,
-    across processes, machines and Python versions -- ``hash()`` is not used
-    precisely because it is randomised per process.
+    across processes, machines and Python versions, ``hash()`` is not used
+    because that is randomised per process.
 
     Args:
         global_seed: The run's seed, recorded in provenance.

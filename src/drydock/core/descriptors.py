@@ -5,8 +5,8 @@ These exist to make a hit list interpretable. A screen that returns
 logP and a ligand efficiency tells you whether the score is worth chasing or is
 just a large greasy molecule scoring well because it is large and greasy.
 
-Descriptors are computed on the **input** molecule -- sanitised, before
-protonation -- because that is the form people expect library statistics to
+Descriptors are computed on the **input** molecule, sanitised, before
+protonation, because that is the form people expect library statistics to
 describe. Properties of the prepared, protonated species that actually gets
 docked are recorded separately.
 """

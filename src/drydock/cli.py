@@ -1,8 +1,8 @@
 """Drydock command line interface.
 
 Commands are thin: they parse arguments and hand off to :mod:`drydock.core`.
-Everything reachable here is reachable from the API too, which is what lets the
-GUI drive the same code rather than reimplementing it.
+Everything reachable here is reachable from the API too, so the GUI drives the
+same code rather than reimplementing it.
 
 Heavy imports (RDKit, Vina) are deferred into the command bodies so that
 ``drydock --help`` and ``drydock status`` stay instant.
@@ -214,7 +214,7 @@ def screen_cmd(
         click.secho(f"receptor problem: {problem}", fg="red")
     if report.problems:
         click.secho(
-            "continuing anyway -- results will be affected. "
+            "continuing anyway, results will be affected. "
             "Run 'drydock check-receptor' for detail.",
             fg="yellow",
         )
@@ -246,7 +246,7 @@ def screen_cmd(
     if manifest is None:
         click.secho(
             "warning: no manifest.csv found next to the ligands. The screen will "
-            "run, but results.csv will have affinities and no chemistry -- no "
+            "run, but results.csv will have affinities and no chemistry, no "
             "molecular weight, logP, formula, SMILES, or ligand efficiency. "
             "Re-run 'drydock prep-ligands' to regenerate it.",
             fg="yellow",
@@ -375,7 +375,7 @@ def benchmark_cmd(
     click.echo(f"box: {box}")
     for warning in box.warnings():
         click.secho(f"warning: {warning}", fg="yellow")
-    click.echo(f"timing {sample} ligands on {n_workers} workers…\n")
+    click.echo(f"timing {sample} ligands on {n_workers} workers...\n")
 
     results = []
     for exhaustiveness in exhaustiveness_values or (8,):
@@ -453,7 +453,7 @@ def add_zinc_pseudo(receptor: Path, out: Path | None) -> None:
 
     AutoDock represents zinc coordination through pseudo-atoms (type TZ) placed
     at the *vacant* tetrahedral positions around each zinc. A zinc already
-    saturated by the protein gets none, correctly -- there is no site there for a
+    saturated by the protein gets none, correctly, there is no site there for a
     ligand to reach.
     """
     from drydock.core.zinc import ZincError, add_zinc_pseudo_atoms
@@ -545,7 +545,7 @@ def maps_cmd(
     gpf = write_gpf(local_receptor, box, out / "receptor.gpf", parameter_file=parameters)
     click.echo(f"grid parameter file: {gpf}")
 
-    click.echo("running autogrid4…")
+    click.echo("running autogrid4...")
     try:
         maps_dir = run_autogrid(gpf, out)
     except ZincError as exc:
@@ -554,7 +554,7 @@ def maps_cmd(
     written = sorted(maps_dir.glob("*.map"))
     total_mb = sum(m.stat().st_size for m in written) / 1e6
     click.echo(f"wrote {len(written)} maps ({total_mb:.0f} MB) in {maps_dir}")
-    click.echo(f"screen with: drydock screen --engine ad4 --maps {maps_dir} …")
+    click.echo(f"screen with: drydock screen --engine ad4 --maps {maps_dir} ...")
 
 
 @main.command("prep-receptor")
@@ -802,14 +802,14 @@ def status(run_dir: Path, as_json: bool) -> None:
 def selftest_cmd(keep: bool, work_dir: Path | None) -> None:
     """Verify this installation end to end against known-good values.
 
-    Runs the real pipeline -- prepare, dock, rank -- on a small bundled case and
+    Runs the real pipeline (prepare, dock, rank) on a small bundled case and
     compares the affinities to values recorded from a good run. Unit tests show
-    the code is self-consistent; this shows that *this machine* produces the same
-    numbers as everywhere else, which is the claim that matters.
+    the code is self-consistent. This shows that a given machine produces the
+    same numbers as everywhere else, which is the claim that matters.
     """
     from drydock.core.selftest import run as run_selftest
 
-    click.echo("running self-test…\n")
+    click.echo("running self-test...\n")
     result = run_selftest(work_dir=work_dir, keep=keep)
 
     for check in result.checks:
@@ -843,7 +843,7 @@ def record_reference_cmd(out: Path | None) -> None:
 
     Separate from 'selftest' on purpose: a self-test that writes its own
     expectations when they are missing passes unconditionally and verifies
-    nothing. Re-record only after a deliberate change, and say so in the commit.
+    nothing. Only re-record after an intended change, and say so in the commit.
     """
     from drydock.core.selftest import record_reference
 
@@ -872,8 +872,8 @@ def synthesize_run(
     """Fabricate a run directory with plausible results.
 
     Lets the GUI be built and exercised before any engine exists, and makes
-    awkward states -- a killed run, a run full of failures, a run large enough to
-    stress the results table -- reproducible on demand.
+    awkward states reproducible on demand: a killed run, a run full of failures,
+    a run large enough to stress the results table.
     """
     from drydock.core.synthetic import synthesize_run as _synthesize
 
@@ -894,8 +894,8 @@ def _warn_if_descriptors_missing() -> None:
     """Say so when results carry affinities but no chemistry.
 
     A CSV whose scores are right and whose descriptor columns are all blank reads
-    as a bug in the screen. It is not -- it means the ligand manifest was missing
-    or did not match -- and that distinction is worth stating rather than leaving
+    as a bug in the screen. It is not, it means the ligand manifest was missing
+    or did not match. And that distinction is worth stating rather than leaving
     to be inferred from an empty column.
     """
     from drydock.core.results import descriptors_present
@@ -903,7 +903,7 @@ def _warn_if_descriptors_missing() -> None:
     matched, total = descriptors_present()
     if total and matched == 0:
         click.secho(
-            "warning: no descriptors joined -- results.csv has affinities but no "
+            "warning: no descriptors joined, results.csv has affinities but no "
             "molecular weight, logP, formula, SMILES or ligand efficiency. The "
             "ligand manifest was not found. Re-run 'drydock prep-ligands' on the "
             "same library and output directory, then 'drydock report' again.",

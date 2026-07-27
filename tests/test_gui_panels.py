@@ -183,8 +183,8 @@ class TestLigandPanelCompletion:
         assert emitted == [], "polling while idle must do nothing"
 
     def test_prepared_is_emitted_exactly_once(self, qapp, tmp_path):
-        """The regression: _finish() clears _process, which the completion check
-        then read as 'finished' again, re-emitting on every subsequent poll."""
+        """Regression: _finish() clears _process, which the completion check then
+        read as 'finished' again, re-emitting on every subsequent poll."""
         out = tmp_path / "out"
         out.mkdir()
         (out / "manifest.csv").write_text("ligand_id\nA\n", encoding="utf-8")
@@ -275,11 +275,11 @@ class TestSetupPanelCommand:
         assert "--maps" in command
 
     def test_ad4_refuses_a_directory_of_receptors(self, panel, tmp_path):
-        """The reported failure: pointing Maps at the receptor directory.
+        """Reported failure: pointing Maps at the receptor directory.
 
-        Left to Vina this surfaces as one identical failure per ligand, so a
-        47,000-compound screen fails 47,000 times and explains itself none of
-        them. It has to be refused before the run starts.
+        Left to Vina this gives one identical failure per ligand, so a
+        47,000-compound screen fails 47,000 times without saying why. It has to
+        be refused before the run starts.
         """
         receptors = tmp_path / "Receptor"
         receptors.mkdir()
@@ -326,7 +326,7 @@ class TestPathPickerModes:
     """A dialog offering the wrong operation is worse than none.
 
     Reported: the receptor output field opened a file-*open* dialog, which cannot
-    name a file that does not exist yet -- so there was no way to choose an output
+    name a file that does not exist yet. So there was no way to choose an output
     through the interface at all.
     """
 

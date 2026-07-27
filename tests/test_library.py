@@ -140,7 +140,7 @@ class TestSdfReading:
         assert list(iter_library(_write(tmp_path, "l.sdf", text)))[0].ligand_id == "MYNAME"
 
     def test_property_id_beats_the_title_line(self, tmp_path):
-        """Bulk-generated SDFs put banners in the title; a tag is deliberate."""
+        """Bulk-generated SDFs put banners in the title; a tag is intentional."""
         text = (
             "SciTegic3D\n  test\n\n"
             "  1  0  0  0  0  0            999 V2000\n"

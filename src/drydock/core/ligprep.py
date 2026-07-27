@@ -10,7 +10,7 @@ The pipeline per compound is:
 5. **Describe** the compound so the eventual hit list is interpretable.
 
 Steps 2 and 3 are both done by Scrubber in a single pass, which is also where the
-embedding seed is set -- see :func:`prepare_one`.
+embedding seed is set. See :func:`prepare_one`.
 
 A note on ring conformations
 ----------------------------
@@ -22,8 +22,8 @@ strained boat stays a boat.
 MMFF94s minimisation (the default) relaxes each molecule into its *nearest*
 energy minimum, which repairs bad input geometry but will not cross a barrier to
 find a better ring pucker. ``n_conformers > 1`` embeds several distinct starting
-geometries and docks each, which is the only setting here that genuinely samples
-ring space. Meeko's macrocycle handling -- on by default -- separately lets Vina
+geometries and docks each, which is the only setting here that actually samples
+ring space. Meeko's macrocycle handling, on by default, separately lets Vina
 open and re-close large rings during the search.
 """
 
@@ -183,10 +183,10 @@ def _get_tools(config: PrepConfig) -> _Tools:
 def _readable_error(exc: Exception) -> str:
     """Render an exception in terms a user can act on.
 
-    RDKit's embedding failures arrive as a raw counter dict --
-    ``{'INITIAL_COORDS': 230, 'FIRST_MINIMIZATION': 1, ...}`` -- which is the
-    internal tally of which stage rejected how many attempts. That is diagnostic
-    output for RDKit's authors, not something to put in a user's failure log.
+    RDKit's embedding failures arrive as a raw counter dict such as
+    ``{'INITIAL_COORDS': 230, 'FIRST_MINIMIZATION': 1, ...}``, the internal tally
+    of which stage rejected how many attempts. That is diagnostic output for
+    RDKit's authors, not something to put in a user's failure log.
     """
     text = str(exc)
     if "INITIAL_COORDS" in text or "ETK_MINIMIZATION" in text or "FINAL_CHIRAL" in text:
@@ -197,14 +197,14 @@ def _readable_error(exc: Exception) -> str:
 def _scrub_states(tools: _Tools, mol, record: Record) -> tuple[list, str | None]:
     """Protonate and embed, falling back to the input geometry if embedding fails.
 
-    ETKDG genuinely fails on a small fraction of strained polycyclics -- 15 in the
+    ETKDG fails on a small fraction of strained polycyclics, 15 in the
     first 2000 CMNPD compounds. Dropping those would be wasteful when the library
     already ships usable 3D coordinates: the compound is fine, only the attempt to
     regenerate its geometry from scratch failed.
 
     Returns the protomer list and a warning if the fallback was used. Falling back
     is only possible for formats that carry coordinates, so SMILES input still
-    fails outright -- correctly, since there is nothing to fall back to.
+    fails outright, correctly, since there is nothing to fall back to.
 
     The defensive copy is essential rather than cautious: Scrubber mutates the
     molecule it is given, and strips its conformer even on the failure path. The
@@ -317,8 +317,8 @@ def prepare_one(record: Record, config: PrepConfig, out_dir: Path) -> PreparedLi
         )
 
     # Scrubber may return several protomers/tautomers. The first is the dominant
-    # state at the requested pH, which is what should be docked; enumerating the
-    # rest is a deliberate choice the user has not made here.
+    # state at the requested pH, and is what gets docked. Enumerating the rest
+    # is a choice the user has not made here.
     prepared = states[0]
 
     written: list[str] = []
@@ -376,7 +376,7 @@ def _worker(args: tuple[Record, PrepConfig, str]) -> PreparedLigand | PrepFailur
     Embedding reproducibility is handled by the run-level ``etkdg_rng_seed`` set
     when the Scrub instance is built, not here. ETKDG is deterministic in
     ``(molecule, seed)``, so one seed for the run already gives every compound a
-    reproducible geometry -- unlike docking, where the search is seeded per
+    reproducible geometry, unlike docking, where the search is seeded per
     ligand because Vina explores rather than embeds.
     """
     record, config, out_dir = args

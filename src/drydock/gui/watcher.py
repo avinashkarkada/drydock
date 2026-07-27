@@ -1,14 +1,13 @@
 """Polls a run directory and emits what changed.
 
-This is the whole of the GUI's relationship with a screening run: it reads files,
-it never writes them, and it holds no handle on the process doing the work. That
-is what makes the run survive the window closing, and the window survive the run
-crashing.
+This is the whole of the GUI's relationship with a screening run: it reads
+files, never writes them, and holds no handle on the process doing the work. So
+the run survives the window closing, and the window survives the run crashing.
 
-Polling rather than inotify is deliberate. Run directories live on NFS often
-enough on shared systems, where filesystem notifications are unreliable or
-silently absent, and a one-second `stat` plus a short read is cheap enough that
-the robustness is worth more than the saved syscalls.
+Polling rather than inotify, because run directories often live on NFS on
+shared systems, where filesystem notifications are unreliable or missing
+entirely. A one-second `stat` plus a short read costs little enough that the
+extra robustness is worth more than the syscalls saved.
 """
 
 from __future__ import annotations
@@ -120,7 +119,7 @@ class RunWatcher(QObject):
             self._last_state = status.state
             if status.state in ("finished", "failed", "cancelled"):
                 self.runFinished.emit(status)
-        # Polling deliberately continues after the terminal state is reported.
+        # Polling continues after the terminal state is reported.
         # status.json is written before the last journal records are necessarily
         # visible to a reader, and a "finished" run may still be draining a
         # backlog here.

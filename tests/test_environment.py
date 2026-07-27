@@ -2,7 +2,7 @@
 
 Drydock's reproducibility claim rests on the lockfile describing the whole
 environment. Anything importable that the lockfile does not name breaks that
-claim, and does so silently -- the failure surfaces later, on someone else's
+claim, and does so silently, the failure surfaces later, on someone else's
 machine, as a version skew nobody can reproduce.
 
 These tests are cheap and they fail loudly, which is the point.
@@ -23,7 +23,7 @@ def test_user_site_packages_is_disabled():
     Python enables the per-user site directory by default, which merges whatever
     the user pip-installed globally into this environment. Real example from
     development: a stray `zarr` in ~/.local pulled in `donfig`, which imported
-    `yaml`, which was not installed -- and collapsed the entire test run before
+    `yaml`, which was not installed. And collapsed the entire test run before
     a single test executed.
     """
     assert not site.ENABLE_USER_SITE, (

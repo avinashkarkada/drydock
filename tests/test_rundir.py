@@ -1,7 +1,7 @@
 """Tests for the run-directory contract.
 
-Weighted towards the failure modes the design exists to survive -- truncated
-journals, stale caches, resume after a kill -- rather than the happy path, which
+Weighted towards the failure modes the design exists to survive, truncated
+journals, stale caches, resume after a kill, rather than the happy path, which
 is exercised incidentally by everything else.
 """
 
@@ -263,7 +263,7 @@ class TestFailureClassification:
     """Setup failures must not be treated as tested ligands.
 
     From a real run: a screen started before its grid maps existed journalled 100
-    setup failures. The maps were then created and the screen restarted -- and
+    setup failures. The maps were then created and the screen restarted, and
     resume skipped every ligand, because each was recorded as done. The run could
     never succeed and the interface kept showing the original error.
     """

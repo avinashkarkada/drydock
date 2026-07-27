@@ -2,8 +2,8 @@
 
 This is the first half of the tool, and the half that decides what the second
 half is actually docking. Protonation state, ring geometry and macrocycle
-handling all change results, and none of them announce themselves afterwards --
-a PDBQT built from a badly protonated molecule looks exactly like one built well.
+handling all change results, and none of them show up afterwards. A PDBQT built
+from a badly protonated molecule looks exactly like one built well.
 
 So the panel surfaces those choices rather than burying them behind a default,
 and explains the one that most often surprises people: Vina samples rotatable
@@ -54,7 +54,7 @@ class LigandPanel(QWidget):
         self._process: subprocess.Popen | None = None
         self._expected = 0
         # Guards completion handling. _finish() clears _process, which the
-        # completion check would otherwise read as "finished" a second time --
+        # completion check would otherwise read as "finished" a second time,
         # re-emitting `prepared` and re-running whatever is connected to it.
         self._running = False
 
@@ -107,7 +107,7 @@ class LigandPanel(QWidget):
         self.out_dir = PathPicker("Directory to write PDBQTs and the manifest", directory=True)
 
         self.id_field = QLineEdit()
-        self.id_field.setPlaceholderText("auto-detected (COMPOUND_ID, ChEMBL_ID, Name, …)")
+        self.id_field.setPlaceholderText("auto-detected (COMPOUND_ID, ChEMBL_ID, Name, ...)")
 
         form.addRow("Input file", self.library)
         form.addRow("Output directory", self.out_dir)
@@ -159,10 +159,10 @@ class LigandPanel(QWidget):
 
         note = QLabel(
             "<b>Ring conformations:</b> Vina samples rotatable bonds but never ring "
-            "geometry — whatever ring shape is in the PDBQT is held rigid for the "
+            "geometry, whatever ring shape is in the PDBQT is held rigid for the "
             "whole run. Minimising repairs bad geometry but only finds the nearest "
             "minimum; it will not flip a chair to a boat. More than one conformer "
-            "is the only setting here that genuinely samples ring space, at "
+            "is the only setting here that actually samples ring space, at "
             "proportionally more docking time."
         )
         note.setWordWrap(True)
@@ -214,7 +214,7 @@ class LigandPanel(QWidget):
 
         from drydock.core.library import LibraryFormatError, survey
 
-        self._note("Surveying…")
+        self._note("Surveying...")
         try:
             info = survey(path, id_field=self.id_field.text().strip() or None)
         except (LibraryFormatError, OSError) as exc:
@@ -229,7 +229,7 @@ class LigandPanel(QWidget):
         if info["compounds_with_variants"]:
             lines.append(
                 f"{info['compounds_with_variants']:,} identifiers repeat "
-                f"(up to {info['max_variants']} times) — these are kept as separate "
+                f"(up to {info['max_variants']} times), these are kept as separate "
                 "ligands and grouped again in the results."
             )
         self._note("<br>".join(lines))
@@ -283,7 +283,7 @@ class LigandPanel(QWidget):
         """
         if self._process and self._process.poll() is None:
             self._process.terminate()
-            self._note("Stopping… already-prepared ligands are kept and can be resumed.")
+            self._note("Stopping... already-prepared ligands are kept and can be resumed.")
         self._finish()
 
     def _build_command(self) -> list[str] | None:
@@ -352,7 +352,7 @@ class LigandPanel(QWidget):
                 f"failed <b>{summary.get('failed', failed):,}</b>"
             )
             if summary.get("failed"):
-                detail += f" — see <tt>{prep.failures_file}</tt>"
+                detail += f". See <tt>{prep.failures_file}</tt>"
             self._note(f"Finished: {detail}<br>Manifest: <tt>{prep.manifest_file}</tt>")
             self._finish()
             self.prepared.emit(str(prep.path))

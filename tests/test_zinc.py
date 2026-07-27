@@ -1,10 +1,10 @@
 """Tests for AutoDock4Zn support.
 
 The force-field constants are asserted literally. They are transcribed from a
-third-party source, a typo in one would silently change every score in a zinc
-screen, and nothing downstream would flag it -- a mistyped well depth produces
-plausible numbers, not an error. Transcribing one wrong during development is
-precisely what prompted these.
+third-party source, and a typo in one would change every score in a zinc screen
+without anything downstream noticing: a mistyped well depth gives plausible
+numbers rather than an error. One was transcribed wrong during development,
+which is why these are here.
 """
 
 from __future__ import annotations

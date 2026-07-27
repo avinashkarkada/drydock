@@ -5,16 +5,15 @@ weakness. Vina types metals as unremarkable hydrogen-bond donors, so it has no
 notion of the tetrahedral coordination geometry that actually governs how an
 inhibitor engages a catalytic zinc.
 
-AutoDock4Zn fixes this by adding four pseudo-atoms (type ``TZ``) at the vacant
-tetrahedral positions around each zinc, plus a set of pairwise potentials. A
-ligand atom that reaches a TZ site is rewarded for completing the coordination
-sphere, in the right geometry rather than merely nearby.
+AutoDock4Zn handles this by adding pseudo-atoms (type ``TZ``) at the vacant
+tetrahedral positions around each zinc, together with a set of pairwise
+potentials. A ligand atom reaching a TZ site is rewarded for completing the
+coordination sphere in the right geometry, not just for being nearby.
 
-Using it requires two things this module provides:
+Two things are needed, both provided here:
 
-1. **TZ atoms in the receptor.** This is a receptor modification, and receptor
-   preparation is otherwise outside Drydock's remit -- so it is opt-in, narrow,
-   and never silent. Without it the AD4Zn path simply cannot run.
+1. **TZ atoms in the receptor**, added by :func:`add_zinc_pseudo_atoms`. The
+   AD4Zn path cannot run without them.
 2. **A grid parameter file** carrying the AD4Zn potentials, which AutoGrid reads
    when computing maps.
 
@@ -22,11 +21,11 @@ Provenance
 ----------
 
 ``zinc_pseudo.py`` and the TZ parameter line are vendored from AMDock (GPL-3),
-which in turn carries them from the AutoDock4Zn authors. AMDock also ships
-``prepare_gpf4zn.py``, but it imports MolKit and AutoDockTools -- MGLTools, which
-is Python 2 and effectively unavailable -- so the GPF is written here instead.
-That is a small loss: the AD4Zn-specific content of a GPF is six ``nbp_r_eps``
-lines, reproduced below.
+which carries them from the AutoDock4Zn authors. AMDock also ships
+``prepare_gpf4zn.py``, but that imports MolKit and AutoDockTools from MGLTools,
+which is Python 2 and no longer practical to install. The GPF is written here
+instead. Not much is lost: the AD4Zn-specific part of a GPF is the six
+``nbp_r_eps`` lines below.
 """
 
 from __future__ import annotations
@@ -43,8 +42,9 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 ZINC_PSEUDO_SCRIPT = DATA_DIR / "zinc_pseudo.py"
 AD4ZN_PARAMETERS = DATA_DIR / "AD4Zn.dat"
 
-# Grid spacing in Angstroms. AutoGrid's default, and what the AD4 scoring
-# function was parameterised against -- changing it invalidates the potentials.
+# Grid spacing in Angstroms. This is AutoGrid's default and what the AD4
+# scoring function was parameterised against. Changing it invalidates the
+# potentials.
 GRID_SPACING = 0.375
 
 # The AutoDock4Zn potentials, appended to an otherwise standard GPF.
@@ -85,14 +85,13 @@ MAP_PREFIX = "receptor"
 def maps_status(maps_dir: str | Path | None) -> tuple[bool, str]:
     """Check whether a directory holds usable AutoGrid maps.
 
-    Exists because the failure mode it prevents is expensive and unhelpful: Vina
-    reports a missing map set as ``Cannot find affinity maps with <path>``, once
-    per ligand, so a screen pointed at the wrong directory fails tens of thousands
-    of times and explains itself none of them.
+    Without this check, Vina reports a missing map set as ``Cannot find affinity
+    maps with <path>`` once per ligand, so a screen pointed at the wrong
+    directory fails tens of thousands of times without ever saying what is
+    actually wrong.
 
-    The mistake it catches is a natural one -- pointing at the directory holding
-    the *receptor*, which is where maps intuitively ought to live but do not until
-    ``drydock maps`` has been run.
+    The usual mistake is pointing at the directory holding the receptor. Maps do
+    not live there until ``drydock maps`` has been run.
 
     Returns:
         ``(ok, message)``. The message says what to do when not ok.
@@ -115,7 +114,7 @@ def maps_status(maps_dir: str | Path | None) -> tuple[bool, str]:
         names = ", ".join(p.name for p in receptors[:3])
         return False, (
             f"{path} contains receptor files ({names}) but no AutoGrid maps. "
-            "Maps are computed separately from the receptor -- run 'drydock maps' "
+            "Maps are computed separately from the receptor, run 'drydock maps' "
             "(or use Generate maps in the GUI) and point this at the directory it "
             "writes."
         )
@@ -145,10 +144,9 @@ def add_zinc_pseudo_atoms(receptor: str | Path, output: str | Path | None = None
     """Place tetrahedral TZ pseudo-atoms around each zinc in a receptor.
 
     Runs the vendored ``zinc_pseudo.py``, which inspects each zinc's existing
-    coordination and places pseudo-atoms at the vacant tetrahedral positions 2.0 A
-    out. Run as a subprocess rather than imported because it is third-party code
-    with a script-shaped interface, and keeping it at arm's length makes its
-    provenance obvious.
+    coordination and places pseudo-atoms at the vacant tetrahedral positions,
+    2.0 A out. It is run as a subprocess rather than imported: it is third-party
+    code with a script-shaped interface.
 
     Args:
         receptor: Prepared receptor PDBQT containing at least one zinc.
@@ -192,7 +190,7 @@ def add_zinc_pseudo_atoms(receptor: str | Path, output: str | Path | None = None
         )
 
     # zinc_pseudo.py upper-cases the metal types it passes through, turning "Zn"
-    # into "ZN" -- which AutoGrid tolerates but Vina rejects outright. Repair the
+    # into "ZN", which AutoGrid tolerates but Vina rejects outright. Repair the
     # casing so the output is usable with every engine, not just the ad4 path it
     # was produced for.
     from drydock.core.receptor import normalize_atom_types
@@ -212,7 +210,7 @@ def add_zinc_pseudo_atoms(receptor: str | Path, output: str | Path | None = None
         raise ZincError(
             "zinc_pseudo.py produced no TZ atoms. This happens when every zinc is "
             "already fully coordinated by the protein, leaving no vacant site for a "
-            "ligand -- in which case AutoDock4Zn has nothing to contribute."
+            "ligand, in which case AutoDock4Zn has nothing to contribute."
         )
 
     return ZincResult(receptor_tz=output, n_pseudo_atoms=n_tz, n_zinc=n_zinc)
@@ -235,7 +233,7 @@ def write_gpf(
         box: Search box. Determines grid centre and extent.
         output: Where to write the GPF.
         ligand_types: Atom types to compute maps for. Must cover every type any
-            ligand in the screen presents -- a missing map is a hard failure at
+            ligand in the screen presents, a missing map is a hard failure at
             docking time, not a silently skipped atom.
         parameter_file: AD4 parameter file. Defaults to the bundled AD4Zn.dat.
         spacing: Grid spacing in Angstroms.

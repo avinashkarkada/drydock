@@ -1,8 +1,9 @@
 """Drives a screen: prepared ligands in, journalled results out.
 
-The shape mirrors ligand preparation -- a process pool over a stream of work,
-with results written to disk as they arrive -- but the failure model is stricter,
-because a screen runs for hours rather than minutes and will be interrupted.
+The shape mirrors ligand preparation: a process pool over a stream of work,
+with results written to disk as they arrive. The failure model is stricter,
+though, because a screen runs for hours rather than minutes and will be
+interrupted at some point.
 
 Every finished ligand is journalled and fsync'd by the parent before the run
 moves on, so a killed screen loses at most the ligand in flight. See
@@ -49,7 +50,7 @@ class SetupFailure(RuntimeError):
 # nobody opens, and the run directory should stay small enough to copy.
 DEFAULT_POSE_CUTOFF_RANK = 500
 
-# Ligands per worker dispatch. One, deliberately.
+# Ligands per worker dispatch. One, on purpose.
 #
 # multiprocessing returns a chunk's results only once the whole chunk is done, so
 # any chunking delays the journal by (chunk size - 1) ligands. Docking takes
@@ -68,7 +69,7 @@ STATUS_EVERY = 10
 
 # Consecutive setup failures before a run gives up.
 #
-# A setup failure -- missing grid maps, an unreadable receptor -- affects every
+# A setup failure, missing grid maps, an unreadable receptor, affects every
 # ligand equally, so continuing means failing identically tens of thousands of
 # times and burying the cause. Stopping after a handful reports it once, while
 # still tolerating a worker that fails to start for an unrelated transient reason.
@@ -86,7 +87,7 @@ class LigandJob:
 
 # Worker-process state. Building an engine means loading the receptor and
 # computing grid maps (~1.5 s), so it is done once per process and reused. This
-# is only correct because Vina re-seeds per dock() call -- see VinaEngine.
+# is only correct because Vina re-seeds per dock() call. See VinaEngine.
 _ENGINE = None
 _ENGINE_CONFIG: DockConfig | None = None
 
@@ -174,8 +175,8 @@ def _feed(
             continue
         # Poses cannot be exported by score, because the score is not known until
         # after docking. Keeping them for a leading slice of the run is a
-        # deliberate approximation -- the full re-dock of a handful of top hits
-        # is cheap, and 'drydock poses' does exactly that.
+        # rough approximation. Re-docking a handful of top hits afterwards is
+        # cheap, and that is what 'drydock poses' is for.
         yield LigandJob(ligand_id, str(path), want_poses=index < pose_cutoff), config
 
 
@@ -209,7 +210,7 @@ def run_screen(
     n_workers = n_workers or (os.cpu_count() or 1)
 
     # Written before any docking starts, so an interrupted run still records what
-    # it was attempting -- which is exactly when the question gets asked.
+    # it was attempting, which is exactly when the question gets asked.
     from drydock.core import provenance as prov
     from drydock.core.results import find_manifest
 

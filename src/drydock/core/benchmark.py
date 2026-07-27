@@ -5,31 +5,30 @@ ligand varies by more than an order of magnitude with box volume, exhaustiveness
 and ligand flexibility, so an estimate carried over from a different target is
 worth very little.
 
-The measurement that motivated this module: an MMP9 screen whose search box was
-derived from nine active-site residues with 5 A padding ran at a median of 81
-seconds and a mean of 130 seconds per ligand, with the worst compound taking 888.
-That is roughly six days for a 47,000-record library at exhaustiveness 8 on
-twelve cores -- a number worth knowing before starting rather than after.
+For example: an MMP9 screen with a box built from nine active-site residues and
+5 A padding ran at a median of 81 seconds and a mean of 130 seconds per ligand,
+with the slowest compound taking 888. That works out at roughly six days for a
+47,000-record library at exhaustiveness 8 on twelve cores. Better to know that
+before starting than after.
 
 Measure on an idle machine
 --------------------------
 
-A benchmark saturates every core it is given, so anything else running competes
-with it directly. During development, benchmark runs that overlapped with test
-suites and linters on the same twelve cores reported per-ligand costs inflated by
-more than 3x, and the discrepancy was initially mistaken for a real effect of a
-code change. Two full runs of the same 100 compounds, measured without competing
-load, agreed to within 2%.
+A benchmark uses every core it is given, so anything else running competes with
+it. Benchmark runs that overlapped with test suites and linters on the same
+twelve cores reported per-ligand costs more than 3x too high, which looked at
+first like a real effect of a code change. Two full runs of the same 100
+compounds with no competing load agreed to within 2%.
 
-If a projection here disagrees sharply with what a real screen goes on to do,
-suspect the measurement conditions before suspecting the configuration.
+If a projection here disagrees sharply with what a real screen then does, check
+the measurement conditions before the configuration.
 
 Sampling
 --------
 
 Ligands are sampled deterministically across the whole directory rather than
 taken from the front. Libraries are frequently ordered by something correlated
-with size, so a leading slice is systematically unrepresentative -- in CMNPD the
+with size, so a leading slice is systematically unrepresentative, in CMNPD the
 first few hundred compounds are small sulfur-containing molecules that dock an
 order of magnitude faster than the median.
 """
@@ -52,7 +51,7 @@ from drydock.engines.base import DockConfig
 # (in a marine natural-product library, a 10x spread between median and worst),
 # and total runtime is a sum, so the tail is exactly what the projection depends
 # on. A 20-ligand sample of one library gave a mean of 82 s where the full
-# 100-compound run gave 122 s -- a 33% underestimate, entirely because the small
+# 100-compound run gave 122 s, a 33% underestimate, entirely because the small
 # sample missed the slow compounds.
 #
 # 50 is a compromise: still minutes rather than hours to measure, but wide enough
@@ -92,7 +91,7 @@ class BenchmarkResult:
 
         1.0 means a symmetric distribution. Above roughly 1.3 the projection is
         being driven by a minority of slow ligands, and a small sample may well
-        have missed them -- so the projection should be read as a lower bound.
+        have missed them. So the projection should be read as a lower bound.
         """
         median = self.median_s
         return (self.mean_s / median) if median else 1.0

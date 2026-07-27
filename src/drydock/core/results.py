@@ -18,8 +18,8 @@ Two files come out, because two different questions get asked of a screen.
 Grouping stereoisomers
 ----------------------
 
-Libraries that enumerate stereoisomers under one identifier -- CMNPD gives
-``CMNPD22318`` 64 of them -- will otherwise fill a top-100 list with variants of
+Libraries that enumerate stereoisomers under one identifier, CMNPD gives
+``CMNPD22318`` 64 of them, will otherwise fill a top-100 list with variants of
 a handful of compounds. Results are therefore grouped by ``compound_id`` and
 ranked on the best-scoring variant, with the number of variants tried recorded
 alongside. ``--flat`` reports every record separately instead.

@@ -1,10 +1,10 @@
 """Tests for receptor preparation.
 
-The point of this module is not that Meeko works -- that is Meeko's business --
-but that its output is checked before being handed on, and that its failures
-arrive as something a user can act on. A receptor that prepares "successfully"
-with no hydrogen-bond donors is the failure that motivated all of this, and it
-raises nothing anywhere.
+These do not test that Meeko works, which is Meeko's business. They test that
+its output is checked before being handed on, and that its failures arrive as
+something a user can act on. A receptor that prepares "successfully" with no
+hydrogen-bond donors is the failure that prompted all this, and it raises
+nothing anywhere.
 """
 
 from __future__ import annotations

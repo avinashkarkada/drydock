@@ -4,8 +4,8 @@ Includes regressions for two bugs that only appeared against real data:
 
 * Torsion counts read from the wrong PDBQT record, reporting 0 rotatable bonds
   for every compound in the library.
-* Scrubber mutating the molecule it is handed -- stripping its conformer even
-  when it fails -- so the geometry fallback was given an already-emptied
+* Scrubber mutating the molecule it is handed, stripping its conformer even
+  when it fails. So the geometry fallback was given an already-emptied
   molecule and reported "no 3D conformer produced" for compounds whose input
   coordinates were fine.
 """
@@ -185,8 +185,8 @@ class TestGeometryFallback:
         real_scrub = tools.scrub
 
         def always_fails(_mol):
-            # Reproduce the real failure precisely: Scrubber strips the caller's
-            # conformer on the way out, even when it raises.
+            # Reproduce the real failure: Scrubber strips the caller's conformer
+            # on the way out, even when it raises.
             _mol.RemoveAllConformers()
             raise RuntimeError("{'INITIAL_COORDS': 230}")
 

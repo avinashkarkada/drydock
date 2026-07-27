@@ -1,6 +1,6 @@
 """Drives ligand preparation over a whole library.
 
-Preparation is embarrassingly parallel -- compounds do not interact -- so this is
+Preparation is embarrassingly parallel, compounds do not interact. So this is
 a process pool over a streaming reader, with results written to disk as they
 arrive rather than collected and written at the end.
 
@@ -121,7 +121,7 @@ class PrepDir:
     def prepared_ids(self) -> set[str]:
         """Ligand IDs already in the manifest, for resuming.
 
-        A row whose PDBQT is missing is not counted as done -- that combination
+        A row whose PDBQT is missing is not counted as done, that combination
         means the run died between writing the file and flushing the manifest, or
         someone deleted the structures, and in both cases the ligand should be
         prepared again.
@@ -152,7 +152,7 @@ class PrepDir:
         Counts newlines rather than parsing CSV, so a watcher can poll a
         preparation run of any size in constant time. Approximate by a row or two
         while a flush is in flight, which is the right trade for a progress
-        indicator -- the manifest itself remains the authority.
+        indicator, the manifest itself remains the authority.
         """
         return (_count_data_rows(self.manifest_file), _count_data_rows(self.failures_file))
 
@@ -271,11 +271,11 @@ def run_prep(
 
         work = _feed(library, config, prep.pdbqt_dir, id_field, fmt, skip, limit)
 
-        # "forkserver", deliberately, and not the two obvious alternatives.
+        # "forkserver", not the two more obvious alternatives.
         #
         # "spawn" re-imports __main__ in every child. A user who calls run_prep()
-        # at module level in a script -- which is a completely reasonable thing to
-        # write -- then has each worker re-execute the script and start its own
+        # at module level in a script, which is a completely reasonable thing to
+        # write, then has each worker re-execute the script and start its own
         # pool. That is a fork bomb, and it presents as the machine locking up
         # rather than as an error anyone can act on.
         #

@@ -6,7 +6,7 @@ loading it with ``Chem.SDMolSupplier`` would take gigabytes and minutes before a
 work started. Streaming means preparation begins on the first compound and peak
 memory does not depend on library size.
 
-Records are yielded as :class:`Record` -- identifiers plus the raw text block --
+Records are yielded as :class:`Record` (identifiers plus the raw text block)
 rather than as RDKit molecules, because these get handed to worker processes and
 strings pickle cheaply where molecules do not.
 
@@ -17,8 +17,8 @@ Compound identifiers in real libraries are **not unique**, and treating them as
 filenames silently destroys data. CMNPD 1.0 is a working example: 47,451 records
 carry only 25,224 distinct ``COMPOUND_ID`` values, because every compound with
 undefined stereocentres has had all 2^n stereoisomers enumerated under one ID
-(``CMNPD22318`` appears 64 times). Each is a genuinely different molecule that
-docks differently, so they all deserve to be screened -- but writing them all to
+(``CMNPD22318`` appears 64 times). Each is a different molecule that
+docks differently, so they all deserve to be screened. But writing them all to
 ``CMNPD22318.pdbqt`` would keep one and lose 63.
 
 So every record carries both:
@@ -172,7 +172,7 @@ def iter_library(
 
     # Counts of identifiers seen so far. Holding these is the one part of reading
     # that is not constant-memory, but it is a few hundred thousand short strings
-    # even for a large library -- trivial next to the cost of getting it wrong.
+    # even for a large library, trivial next to the cost of getting it wrong.
     seen: defaultdict[str, int] = defaultdict(int)
     for record in raw:
         seen[record.compound_id] += 1
@@ -193,8 +193,8 @@ def _iter_sdf(path: Path, id_field: str | None) -> Iterator[Record]:
     """Stream an SDF by splitting on the ``$$$$`` record terminator.
 
     Parsed as text rather than through RDKit's supplier so that a molecule RDKit
-    rejects still yields a record with an identifier -- which is what lets the
-    failure be reported against a name the user recognises instead of an index.
+    rejects still yields a record with an identifier, so the failure can be
+    reported against a name the user recognises rather than an index.
     """
     with _open_text(path) as fh:
         buffer: list[str] = []
@@ -226,10 +226,10 @@ def _sdf_id(block: str, id_field: str | None, index: int) -> str:
     Order: the requested field, then any recognised property name, then the title
     line, then a positional fallback.
 
-    Properties are tried before the title deliberately. The title is where the
-    format intends the name to live, but in practice bulk-generated SDFs leave it
-    blank or fill it with the generating program's banner, whereas an explicit
-    ``> <COMPOUND_ID>`` tag is there because someone meant it.
+    Properties come before the title on purpose. The title is where the format
+    intends the name to live, but bulk-generated SDFs usually leave it blank or
+    fill it with the writing program's banner. An explicit ``> <COMPOUND_ID>``
+    tag is there because someone put it there.
     """
     if id_field:
         if value := _sdf_property(block, id_field):

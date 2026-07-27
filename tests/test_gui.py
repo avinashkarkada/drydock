@@ -266,7 +266,7 @@ class TestMainWindow:
 
     These exist because a model that sorts correctly in isolation can still be
     re-sorted by the view during construction. ``setSortingEnabled(True)`` applies
-    the header's default indicator -- column 0, *descending* -- which presented
+    the header's default indicator, column 0, *descending*, which presented
     the worst binders at the top of a screening result. The model unit tests all
     passed throughout.
     """

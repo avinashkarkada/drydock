@@ -1,13 +1,13 @@
 """Reading and checking a prepared receptor.
 
-Drydock does not prepare receptors -- you point it at a PDBQT you made yourself.
+Drydock does not prepare receptors, you point it at a PDBQT you made yourself.
 It does *check* the one you give it, because receptor preparation has failure
 modes that produce a perfectly valid file which then silently distorts every
 result in the run.
 
 The one that motivated this module: a receptor prepared without polar hydrogens.
 AutoDock represents a hydrogen-bond donor as a heavy atom with an ``HD`` hydrogen
-attached. Strip the hydrogens and the donors do not become weaker -- they cease
+attached. Strip the hydrogens and the donors do not become weaker, they cease
 to exist. Every backbone amide, every lysine, every tyrosine hydroxyl scores
 acceptor-only. Nothing errors, every affinity is wrong in the same direction, and
 the file looks fine.
@@ -33,10 +33,10 @@ ZINC_PSEUDO = "TZ"
 # Canonical AutoDock atom types, keyed by their upper-case form.
 #
 # AutoDock types are case-sensitive and two-letter elements use element casing:
-# "Zn", not "ZN". Vina rejects the wrong case outright -- and reports it as a C++
+# "Zn", not "ZN". Vina rejects the wrong case outright. And reports it as a C++
 # overload-resolution error that reads like a caller bug rather than a fixable
 # problem with the file. Tools disagree about this often enough to be worth
-# repairing rather than merely diagnosing; AMDock's zinc_pseudo.py, for one,
+# repairing rather than just reporting. AMDock's zinc_pseudo.py, for one,
 # upper-cases every metal it passes through.
 CANONICAL_ATOM_TYPES: dict[str, str] = {
     t.upper(): t
@@ -157,8 +157,8 @@ def read_pdbqt(path: str | Path) -> list[ReceptorAtom]:
 def inspect(path: str | Path) -> ReceptorReport:
     """Check a prepared receptor and report anything suspicious.
 
-    Distinguishes *problems* -- things that will distort results -- from *notes*,
-    which are simply worth knowing before committing to a long run.
+    Separates *problems* (things that will distort results) from *notes*, which
+    are just worth knowing before committing to a long run.
     """
     path = Path(path)
     atoms = read_pdbqt(path)
@@ -194,7 +194,7 @@ def inspect(path: str | Path) -> ReceptorReport:
         problems.append(
             "no polar hydrogens (HD atoms). AutoDock represents a hydrogen-bond "
             "donor as a heavy atom with an HD hydrogen attached, so this receptor "
-            "has no donors at all -- backbone amides, Lys, Arg, Ser/Thr/Tyr "
+            "has no donors at all. Backbone amides, Lys, Arg and Ser/Thr/Tyr "
             "hydroxyls will all score acceptor-only. Re-prepare with polar "
             "hydrogens added."
         )
@@ -289,7 +289,7 @@ def box_from_residues(
     """Build a search box enclosing the named residues.
 
     Returns the box and the atoms it was derived from, so a caller can report
-    which residues were actually found -- a mistyped residue number would
+    which residues were actually found, a mistyped residue number would
     otherwise shrink the box silently.
     """
     atoms = read_pdbqt(path)
@@ -303,7 +303,7 @@ def box_from_residues(
             f"none of residues {list(residues)} were found"
             + (f" in chain {chain}" if chain else "")
             + f". The receptor covers {present[0]}-{present[-1]}. "
-            "Check numbering -- construct residue numbers often differ from UniProt."
+            "Check numbering, construct residue numbers often differ from UniProt."
         )
 
     found = {a.residue_seq for a in selected}
@@ -311,7 +311,7 @@ def box_from_residues(
     if missing:
         raise ValueError(
             f"residues not present in the receptor: {missing}. "
-            "Check numbering -- construct residue numbers often differ from UniProt."
+            "Check numbering, construct residue numbers often differ from UniProt."
         )
 
     box = Box.from_atoms([a.coordinates for a in selected], padding=padding, cubic=cubic)

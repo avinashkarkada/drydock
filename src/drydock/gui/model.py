@@ -163,7 +163,7 @@ def _sort_key(record: LigandResult, field: str) -> tuple[int, Any]:
 
     Failed ligands have no affinity. Sorting them as ``inf`` would be wrong for a
     descending sort (they would lead), so absence is encoded in a leading flag
-    that always sorts last in ascending order and first in descending -- either
+    that always sorts last in ascending order and first in descending, either
     way, grouped and out of the way of real results.
     """
     if field == "n_modes":

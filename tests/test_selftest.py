@@ -50,7 +50,7 @@ class TestBundledData:
         assert reference["affinities"]
 
     def test_reference_records_the_settings_it_was_measured_with(self):
-        """A reference is only meaningful alongside how it was produced."""
+        """A reference only means something alongside how it was produced."""
         reference = load_reference()
         settings = reference["settings"]
         assert settings["seed"] is not None
@@ -158,7 +158,7 @@ class TestProvenance:
         assert provenance.file_sha256(tmp_path / "absent") is None
 
     def test_hash_detects_a_changed_receptor(self, tmp_path):
-        """The reason inputs are hashed rather than merely named."""
+        """Why inputs are hashed rather than just named."""
         path = tmp_path / "rec.pdbqt"
         path.write_text("ATOM      1  N\n", encoding="utf-8")
         before = provenance.file_sha256(path)
