@@ -51,7 +51,7 @@ same numbers.
 ## Install
 
 ```bash
-git clone https://github.com/<user>/drydock.git
+git clone https://github.com/avinashkarkada/drydock.git
 cd drydock
 pixi install
 pixi run selftest

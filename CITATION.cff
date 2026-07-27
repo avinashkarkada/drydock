@@ -6,7 +6,7 @@ authors:
   - family-names: "Karkada Ashok"
     given-names: "Avinash"
     email: "avikarkada@gmail.com"
-repository-code: "https://github.com/<user>/drydock"
+repository-code: "https://github.com/avinashkarkada/drydock"
 license: GPL-3.0-or-later
 version: 0.1.0
 abstract: >-
