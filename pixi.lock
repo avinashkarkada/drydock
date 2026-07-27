@@ -599,7 +599,7 @@ packages:
 - pypi: ./
   name: drydock
   version: 0.1.0
-  sha256: b1247a4b334973cb57f2469783209c2916acde276a08ec2727da8a3224d71ea9
+  sha256: 8626f8483d1fe7b9a4437915dcf0871ef860e872ddf835d5a141780a4243f377
   requires_dist:
   - click
   - numpy

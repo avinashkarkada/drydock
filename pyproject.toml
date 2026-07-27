@@ -9,7 +9,7 @@ description = "Reproducible high-throughput virtual screening: ligand preparatio
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }
-authors = [{ name = "Drydock contributors" }]
+authors = [{ name = "Avinash Karkada Ashok", email = "avikarkada@gmail.com" }]
 keywords = ["virtual-screening", "molecular-docking", "autodock", "vina", "cheminformatics"]
 classifiers = [
     "Development Status :: 3 - Alpha",

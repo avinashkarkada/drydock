@@ -3,7 +3,9 @@ title: "Drydock: reproducible high-throughput virtual screening"
 message: "If you use Drydock in your research, please cite it and the underlying docking engines."
 type: software
 authors:
-  - name: "Drydock contributors"
+  - family-names: "Karkada Ashok"
+    given-names: "Avinash"
+    email: "avikarkada@gmail.com"
 repository-code: "https://github.com/<user>/drydock"
 license: GPL-3.0-or-later
 version: 0.1.0

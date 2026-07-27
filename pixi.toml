@@ -2,7 +2,7 @@
 name = "drydock"
 version = "0.1.0"
 description = "Reproducible high-throughput virtual screening: ligand preparation and batch molecular docking"
-authors = ["Drydock contributors"]
+authors = ["Avinash Karkada Ashok <avikarkada@gmail.com>"]
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64"]
 license = "GPL-3.0-or-later"
