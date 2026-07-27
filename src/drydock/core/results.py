@@ -74,6 +74,22 @@ ALL_MODES_COLUMNS: tuple[str, ...] = (
 )
 
 
+# Set by write_results so callers can report a manifest that did not join,
+# rather than silently emitting a CSV with empty chemistry columns.
+_LAST_JOIN: dict[str, int] = {"matched": 0, "total": 0}
+
+
+def descriptors_present() -> tuple[int, int]:
+    """How many rows of the last write_results carried descriptors.
+
+    A results file whose affinities are right and whose chemistry columns are all
+    blank looks like a bug in the screen, and is not: it means the ligand manifest
+    was missing or did not match. Callers surface this so the actual cause is
+    visible.
+    """
+    return _LAST_JOIN["matched"], _LAST_JOIN["total"]
+
+
 @dataclass(slots=True)
 class ResultRow:
     """One ranked compound."""
@@ -180,6 +196,24 @@ def collate(
     return rows
 
 
+def find_manifest(ligand_dir: str | os.PathLike[str] | None) -> Path | None:
+    """Locate the ligand manifest belonging to a prepared library.
+
+    Looks in the directory itself and in its parent, because ``--ligands`` is
+    legitimately given either way: preparation writes ``manifest.csv`` beside a
+    ``pdbqt/`` subdirectory, and people point at whichever of the two they were
+    last looking at.
+    """
+    if not ligand_dir:
+        return None
+
+    directory = Path(ligand_dir)
+    for candidate in (directory / "manifest.csv", directory.parent / "manifest.csv"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def write_results(
     run_dir: str | os.PathLike[str],
     manifest_path: str | os.PathLike[str] | None = None,
@@ -191,7 +225,9 @@ def write_results(
     and produces a hit list of whatever has finished so far.
 
     Returns:
-        The two paths written and the number of ranked rows.
+        The two paths written and the number of ranked rows. Check
+        :func:`descriptors_present` if the caller needs to know whether the
+        chemistry columns were populated.
     """
     run = RunDir(run_dir)
     records = list(run.read_journal())
@@ -206,6 +242,8 @@ def write_results(
                 }
 
     rows = collate(records, manifest, group_stereoisomers=group_stereoisomers)
+    _LAST_JOIN["matched"] = sum(1 for r in rows if r.descriptors)
+    _LAST_JOIN["total"] = len(rows)
 
     with open(run.results_file, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=RESULT_COLUMNS, extrasaction="ignore")

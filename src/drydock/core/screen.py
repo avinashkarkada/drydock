@@ -211,15 +211,16 @@ def run_screen(
     # Written before any docking starts, so an interrupted run still records what
     # it was attempting -- which is exactly when the question gets asked.
     from drydock.core import provenance as prov
+    from drydock.core.results import find_manifest
 
-    manifest = Path(pdbqt_dir).parent / "manifest.csv"
+    manifest = find_manifest(pdbqt_dir)
     run.write_provenance(
         prov.build(
             receptor=config.receptor,
             ligand_dir=pdbqt_dir,
             config=config,
-            manifest=manifest if manifest.exists() else None,
-            extra={"n_workers": n_workers},
+            manifest=manifest,
+            extra={"n_workers": n_workers, "manifest_found": manifest is not None},
         )
     )
 

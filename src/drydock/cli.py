@@ -240,6 +240,18 @@ def screen_cmd(
     prep = PrepDir(ligands)
     pdbqt_dir = prep.pdbqt_dir if prep.pdbqt_dir.is_dir() else ligands
 
+    from drydock.core.results import find_manifest
+
+    manifest = find_manifest(pdbqt_dir)
+    if manifest is None:
+        click.secho(
+            "warning: no manifest.csv found next to the ligands. The screen will "
+            "run, but results.csv will have affinities and no chemistry -- no "
+            "molecular weight, logP, formula, SMILES, or ligand efficiency. "
+            "Re-run 'drydock prep-ligands' to regenerate it.",
+            fg="yellow",
+        )
+
     config = DockConfig(
         receptor=str(receptor),
         box=box,
@@ -273,10 +285,11 @@ def screen_cmd(
     )
 
     results, all_modes, n = write_results(
-        run_dir, prep.manifest_file, group_stereoisomers=not flat
+        run_dir, manifest, group_stereoisomers=not flat
     )
     click.echo(f"results:   {results}  ({n} rows)")
     click.echo(f"all modes: {all_modes}")
+    _warn_if_descriptors_missing()
 
 
 @main.command("benchmark")
@@ -395,10 +408,21 @@ def report_cmd(run_dir: Path, manifest: Path | None, flat: bool, top: int) -> No
     Safe to run against a screen still in progress: it reports on whatever has
     finished so far.
     """
-    from drydock.core.results import write_results
+    from drydock.core.results import find_manifest, write_results
+
+    if manifest is None:
+        # The run records where its ligands came from, so the manifest can
+        # usually be found without being told.
+        from drydock.core.rundir import RunDir
+
+        provenance = RunDir(run_dir).read_provenance() or {}
+        manifest = find_manifest((provenance.get("ligands") or {}).get("path"))
+        if manifest:
+            click.echo(f"using manifest {manifest}")
 
     results, all_modes, n = write_results(run_dir, manifest, group_stereoisomers=not flat)
     click.echo(f"wrote {results} ({n} rows) and {all_modes}")
+    _warn_if_descriptors_missing()
 
     import csv as _csv
 
@@ -864,6 +888,33 @@ def synthesize_run(
     )
     current = run.read_status()
     click.echo(f"wrote {current.done} records to {run.path}")
+
+
+def _warn_if_descriptors_missing() -> None:
+    """Say so when results carry affinities but no chemistry.
+
+    A CSV whose scores are right and whose descriptor columns are all blank reads
+    as a bug in the screen. It is not -- it means the ligand manifest was missing
+    or did not match -- and that distinction is worth stating rather than leaving
+    to be inferred from an empty column.
+    """
+    from drydock.core.results import descriptors_present
+
+    matched, total = descriptors_present()
+    if total and matched == 0:
+        click.secho(
+            "warning: no descriptors joined -- results.csv has affinities but no "
+            "molecular weight, logP, formula, SMILES or ligand efficiency. The "
+            "ligand manifest was not found. Re-run 'drydock prep-ligands' on the "
+            "same library and output directory, then 'drydock report' again.",
+            fg="yellow",
+        )
+    elif total and matched < total:
+        click.secho(
+            f"warning: {total - matched} of {total} compounds have no descriptors; "
+            "the manifest may be from a different library.",
+            fg="yellow",
+        )
 
 
 def _format_duration(seconds: float) -> str:
