@@ -38,13 +38,31 @@ from PySide6.QtWidgets import (
 
 
 class PathPicker(QWidget):
-    """A line edit with a browse button."""
+    """A line edit with a browse button.
+
+    Three modes, because a file dialog that offers the wrong operation is worse
+    than no dialog: an *open* dialog cannot name a file that does not exist yet,
+    so using one for an output leaves the user unable to do the obvious thing.
+
+    ``directory``  choose an existing folder
+    ``save``       name an output, which may not exist yet
+    (neither)      choose an existing file
+    """
 
     changed = Signal(str)
 
-    def __init__(self, placeholder: str = "", directory: bool = False, parent=None) -> None:
+    def __init__(
+        self,
+        placeholder: str = "",
+        directory: bool = False,
+        save: bool = False,
+        strip_suffix: str | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._directory = directory
+        self._save = save
+        self._strip_suffix = strip_suffix
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -62,15 +80,27 @@ class PathPicker(QWidget):
     def _browse(self) -> None:
         if self._directory:
             chosen = QFileDialog.getExistingDirectory(self, "Select directory")
+        elif self._save:
+            chosen, _ = QFileDialog.getSaveFileName(self, "Save as")
         else:
             chosen, _ = QFileDialog.getOpenFileName(self, "Select file")
         if chosen:
-            self.edit.setText(chosen)
+            self.set_path(chosen)
 
     def path(self) -> str:
         return self.edit.text().strip()
 
     def set_path(self, value: str) -> None:
+        """Set the path, removing an extension the caller will add itself.
+
+        Fields that hold a *basename* would otherwise accumulate it twice: a save
+        dialog naturally produces "receptor.pdbqt", the tool appends ".pdbqt", and
+        preparation writes "receptor.pdbqt.pdbqt" and then fails looking for the
+        name it expected. Easy to do by hand as well as through the dialog.
+        """
+        value = value.strip()
+        if self._strip_suffix and value.lower().endswith(self._strip_suffix.lower()):
+            value = value[: -len(self._strip_suffix)]
         self.edit.setText(value)
 
 

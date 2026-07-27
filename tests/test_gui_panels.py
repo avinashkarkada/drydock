@@ -320,3 +320,73 @@ class TestSetupPanelCommand:
         assert _flag_value(command, "--exhaustiveness") == "16"
         assert _flag_value(command, "--modes") == "20"
         assert _flag_value(command, "--seed") == "99"
+
+
+class TestPathPickerModes:
+    """A dialog offering the wrong operation is worse than none.
+
+    Reported: the receptor output field opened a file-*open* dialog, which cannot
+    name a file that does not exist yet -- so there was no way to choose an output
+    through the interface at all.
+    """
+
+    def test_output_fields_use_a_save_dialog(self, qapp):
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        assert panel.out._save is True
+        assert panel.out._directory is False
+
+    def test_input_fields_use_an_open_dialog(self, qapp):
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        assert panel.structure._save is False
+        assert panel.structure._directory is False
+
+    def test_directory_fields_stay_directory_pickers(self, qapp):
+        from drydock.gui.ligand_panel import LigandPanel
+
+        panel = LigandPanel()
+        assert panel.out_dir._directory is True
+
+    def test_basename_field_strips_the_extension_it_will_add(self, qapp):
+        """A save dialog naturally produces 'x.pdbqt'; the tool appends it too."""
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        panel.out.set_path("/tmp/mmp9.pdbqt")
+        assert panel.out.path() == "/tmp/mmp9"
+
+    def test_stripping_is_case_insensitive(self, qapp):
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        panel.out.set_path("/tmp/mmp9.PDBQT")
+        assert panel.out.path() == "/tmp/mmp9"
+
+    def test_a_plain_basename_is_untouched(self, qapp):
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        panel.out.set_path("/tmp/mmp9")
+        assert panel.out.path() == "/tmp/mmp9"
+
+    def test_other_extensions_survive(self, qapp):
+        """Only the extension the tool adds is removed."""
+        from drydock.gui.receptor_panel import ReceptorPanel
+
+        panel = ReceptorPanel()
+        panel.out.set_path("/tmp/mmp9.v2")
+        assert panel.out.path() == "/tmp/mmp9.v2"
+
+
+class TestRecprepBasename:
+    def test_core_also_strips_a_supplied_extension(self, tmp_path):
+        """The CLI can be given 'out.pdbqt' just as easily as the GUI."""
+        import inspect as _inspect
+
+        from drydock.core import recprep
+
+        source = _inspect.getsource(recprep.prepare_receptor)
+        assert '.with_suffix("")' in source, "basename must be normalised"

@@ -124,7 +124,13 @@ def prepare_receptor(
     if not structure.exists():
         raise ReceptorPrepError(f"structure not found: {structure}")
 
+    # Meeko appends .pdbqt to whatever basename it is given, so a basename that
+    # already carries one produces "receptor.pdbqt.pdbqt" -- and preparation then
+    # fails looking for the name it expected. Writing the extension is the
+    # natural thing for a user to do, so accept it and strip it.
     output_basename = Path(output_basename)
+    if output_basename.suffix.lower() == ".pdbqt":
+        output_basename = output_basename.with_suffix("")
     output_basename.parent.mkdir(parents=True, exist_ok=True)
 
     converted_from = None

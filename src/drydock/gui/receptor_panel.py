@@ -73,7 +73,14 @@ class ReceptorPanel(QWidget):
         form = QFormLayout(group)
 
         self.structure = PathPicker("PDB or mmCIF (.pdb, .cif)")
-        self.out = PathPicker("Output path; .pdbqt is appended")
+        # A save target, not an existing file, and a basename rather than a
+        # filename -- so the dialog must allow naming something new, and any
+        # .pdbqt the user supplies is dropped rather than doubled.
+        self.out = PathPicker(
+            "Output name; .pdbqt is added for you",
+            save=True,
+            strip_suffix=".pdbqt",
+        )
 
         form.addRow("Input structure", self.structure)
         form.addRow("Output", self.out)
